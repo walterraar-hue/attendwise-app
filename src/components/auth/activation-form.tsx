@@ -72,9 +72,9 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      const companyId = `COMP-${Date.now()}`;
+      const companyId = doc(collection(firestore, 'companies')).id;
       
-      const roleLimits = {
+      const roleLimits: Record<string, number> = {
         'Global Admin': 0,
         'CEO': 0,
         'Operations Manager': 0,
@@ -94,7 +94,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           roleLimits['CEO'] = 1;
           roleLimits['Operations Manager'] = 2;
           roleLimits['Employee'] = -1; // Unlimited
-          roleLimits['Manager'] = -1; // Unlimited
+          roleLimits['Manager'] = 0; // No managers in premium
       }
 
       const companyData = {
@@ -218,10 +218,10 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const batch = writeBatch(firestore);
 
       // Update the user document from 'pending' to 'active'
-      batch.update(pendingUserDoc.ref, {
+      const userDocRef = doc(firestore, "users", pendingUserDoc.id);
+      batch.update(userDocRef, {
         id: user.uid, // Set the final UID
         status: 'active',
-        name: pendingUserData.name, // Keep the name from the invitation
       });
       
       // Increment the company's used slots
@@ -318,3 +318,5 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
+
+    
