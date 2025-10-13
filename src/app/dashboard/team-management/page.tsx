@@ -88,11 +88,14 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     ];
 
     const roleDetails = allRoles
-        .map(role => ({
-            ...role,
-            limit: roleLimits[role.name], // Can be undefined, number, or -1
-            used: roleCounts[role.name] ?? 0,
-        }))
+        .map(role => {
+            const limit = roleLimits[role.name];
+            return {
+                ...role,
+                limit: limit, // Can be undefined, number, or -1
+                used: roleCounts[role.name] ?? 0,
+            };
+        })
         .filter(role => role.limit !== 0 && role.limit !== undefined);
 
 
