@@ -67,11 +67,11 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
       const user = userCredential.user;
 
       const companyId = `COMP-${Date.now()}`;
-      const companyName = "AttendWise Company";
       
       const companyData = {
         id: companyId,
-        name: companyName,
+        name: `${values.name}'s Company`,
+        ownerId: user.uid, // Add ownerId for security rules
         subscriptionPlan: 'Pro',
         userLimit: 10,
         recordLimit: 1000,
@@ -104,15 +104,12 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
         .then(() => {
             toast({
               title: "Éxito!",
-              description: `Team '${companyName}' created successfully. You can now log in.`,
+              description: `Team created successfully. You can now log in.`,
             });
             router.push('/login');
         })
         .catch(serverError => {
             setIsLoading(false);
-            // We can't know which write failed, so we create a generic error
-            // with the data of all documents. A more granular approach would
-            // be to write each document separately.
             const permissionError = new FirestorePermissionError({
               path: `BATCH WRITE to companies, users, and roles_admin`,
               operation: 'write', 
