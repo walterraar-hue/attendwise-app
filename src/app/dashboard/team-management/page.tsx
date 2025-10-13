@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import Header from "@/components/dashboard/header";
@@ -18,6 +19,7 @@ import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog"
 import { MembersTable } from "@/components/dashboard/members-table";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // A server component to display the invitation code.
 // In a real app, this might be a client component to handle the copy action.
@@ -99,12 +101,14 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
         .filter(role => role.limit !== 0); // Only show roles that are part of the plan
 
     const totalMemberLimit = useMemo(() => {
-        const limit = roleDetails.reduce((acc, role) => {
-            if (role.limit === -1) return Infinity;
-            return acc + role.limit;
+        const limit = Object.values(roleLimits).reduce((acc: number, currentLimit: any) => {
+            if (typeof currentLimit !== 'number') return acc;
+            if (currentLimit === -1) return Infinity;
+            return acc + currentLimit;
         }, 0);
         return limit;
-    }, [roleDetails]);
+    }, [roleLimits]);
+
 
     return (
         <Card>
