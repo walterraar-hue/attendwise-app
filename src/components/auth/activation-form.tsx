@@ -5,11 +5,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { activateAccount } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, FirestorePermissionError, errorEmitter } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch } from "firebase/firestore";
+import { doc, writeBatch, getDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +70,7 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
       const companyData = {
         id: companyId,
         name: `${values.name}'s Company`,
-        ownerId: user.uid, // Add ownerId for security rules
+        ownerId: user.uid,
         subscriptionPlan: 'Pro',
         userLimit: 10,
         recordLimit: 1000,
@@ -100,67 +99,81 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
       batch.set(adminRoleRef, adminRoleData);
 
-      batch.commit()
-        .then(() => {
-            toast({
-              title: "Éxito!",
-              description: `Team created successfully. You can now log in.`,
-            });
-            router.push('/login');
-        })
-        .catch(serverError => {
-            setIsLoading(false);
-            const permissionError = new FirestorePermissionError({
-              path: `BATCH WRITE to companies, users, and roles_admin`,
-              operation: 'write', 
-              requestResourceData: {
-                  company: companyData,
-                  user: userData,
-                  adminRole: adminRoleData
-              }
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        });
+      await batch.commit();
+
+      toast({
+        title: "Éxito!",
+        description: `Team created successfully. You can now log in.`,
+      });
+      router.push('/login');
 
     } catch (error: any) {
       console.error("Error creating team:", error);
-      toast({
-        title: "Error",
-        description: error.code === 'auth/email-already-in-use' 
-          ? "This email is already in use. Please try another one."
-          : error.message || "An unexpected error occurred.",
-        variant: "destructive",
-      });
+      
+      if (error.name === 'FirebaseError' && error.code.includes('permission-denied')) {
+        const permissionError = new FirestorePermissionError({
+            path: `BATCH WRITE`,
+            operation: 'write', 
+            requestResourceData: 'Multiple documents for admin signup'
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      } else {
+        toast({
+          title: "Error",
+          description: error.code === 'auth/email-already-in-use' 
+            ? "This email is already in use. Please try another one."
+            : error.message || "An unexpected error occurred.",
+          variant: "destructive",
+        });
+      }
       setIsLoading(false);
     } 
   };
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
-    const formData = new FormData();
-    Object.entries(values).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
-    
     try {
-        const result = await activateAccount({success: false, message: ""}, formData);
+        const companyRef = doc(firestore, "companies", values.companyCode);
+        const companySnap = await getDoc(companyRef);
+
+        if (!companySnap.exists()) {
+            toast({ title: "Error", description: "Invalid Company Code", variant: "destructive" });
+            setIsLoading(false);
+            return;
+        }
+
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
+        const companyData = companySnap.data();
+
+        const userData = {
+          id: user.uid,
+          companyId: values.companyCode,
+          email: values.email,
+          name: user.displayName || "New User", // Placeholder name
+          role: 'Employee',
+          status: 'active',
+        };
+
+        const batch = writeBatch(firestore);
         
-        if (result.message) {
-          toast({
-            title: result.success ? "Éxito!" : "Error",
-            description: result.message,
-            variant: result.success ? "default" : "destructive",
-          });
-        }
-        if (result.success) {
-          form.reset();
-          router.push('/login');
-        }
-    } catch(e) {
-        // This will likely be a server action error, which is already handled
-        // by Next.js's error boundary. We can add more specific client-side
-        // error handling here if needed.
-    } finally {
+        const userDocRef = doc(firestore, 'users', user.uid);
+        batch.set(userDocRef, userData);
+
+        batch.update(companyRef, { usedSlots: companyData.usedSlots + 1 });
+
+        await batch.commit();
+        
+        toast({ title: "Éxito!", description: "Account activated. You can now log in." });
+        router.push('/login');
+
+    } catch (error: any) {
+        console.error("Error activating member account:", error);
+        toast({
+            title: "Error",
+            description: error.message || "An unexpected error occurred.",
+            variant: "destructive",
+        });
         setIsLoading(false);
     }
   };
