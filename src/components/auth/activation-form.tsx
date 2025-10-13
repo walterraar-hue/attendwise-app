@@ -7,9 +7,9 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { activateAccount } from "@/lib/actions";
 import { useRouter } from "next/navigation";
-import { useAuth, useFirestore } from "@/firebase";
+import { useAuth, useFirestore, FirestorePermissionError, errorEmitter } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, writeBatch } from "firebase/firestore";
+import { doc, writeBatch } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -68,39 +68,62 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
 
       const companyId = `COMP-${Date.now()}`;
       const companyName = "AttendWise Company";
-
-      const batch = writeBatch(firestore);
-
-      const companyDocRef = doc(firestore, 'companies', companyId);
-      batch.set(companyDocRef, {
+      
+      const companyData = {
         id: companyId,
         name: companyName,
         subscriptionPlan: 'Pro',
         userLimit: 10,
         recordLimit: 1000,
         usedSlots: 1,
-      });
+      };
 
-      const userDocRef = doc(firestore, 'users', user.uid);
-      batch.set(userDocRef, {
+      const userData = {
         id: user.uid,
         companyId: companyId,
         email: values.email,
         name: values.name,
         role: 'Global Admin',
         status: 'active',
-      });
+      };
+      
+      const adminRoleData = { admin: true };
+
+      const batch = writeBatch(firestore);
+
+      const companyDocRef = doc(firestore, 'companies', companyId);
+      batch.set(companyDocRef, companyData);
+
+      const userDocRef = doc(firestore, 'users', user.uid);
+      batch.set(userDocRef, userData);
 
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      batch.set(adminRoleRef, { admin: true });
+      batch.set(adminRoleRef, adminRoleData);
 
-      await batch.commit();
-
-      toast({
-        title: "Éxito!",
-        description: `Team '${companyName}' created successfully. You can now log in.`,
-      });
-      router.push('/login');
+      batch.commit()
+        .then(() => {
+            toast({
+              title: "Éxito!",
+              description: `Team '${companyName}' created successfully. You can now log in.`,
+            });
+            router.push('/login');
+        })
+        .catch(serverError => {
+            setIsLoading(false);
+            // We can't know which write failed, so we create a generic error
+            // with the data of all documents. A more granular approach would
+            // be to write each document separately.
+            const permissionError = new FirestorePermissionError({
+              path: `BATCH WRITE to companies, users, and roles_admin`,
+              operation: 'write', 
+              requestResourceData: {
+                  company: companyData,
+                  user: userData,
+                  adminRole: adminRoleData
+              }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        });
 
     } catch (error: any) {
       console.error("Error creating team:", error);
@@ -111,34 +134,38 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
           : error.message || "An unexpected error occurred.",
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
-    }
+    } 
   };
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
-    // This is a simplified version. `activateAccount` server action would be needed here.
-    // For now, we are focusing on fixing the admin flow.
     const formData = new FormData();
     Object.entries(values).forEach(([key, value]) => {
       formData.append(key, value);
     });
-    const result = await activateAccount({success: false, message: ""}, formData);
     
-    if (result.message) {
-      toast({
-        title: result.success ? "Éxito!" : "Error",
-        description: result.message,
-        variant: result.success ? "default" : "destructive",
-      });
+    try {
+        const result = await activateAccount({success: false, message: ""}, formData);
+        
+        if (result.message) {
+          toast({
+            title: result.success ? "Éxito!" : "Error",
+            description: result.message,
+            variant: result.success ? "default" : "destructive",
+          });
+        }
+        if (result.success) {
+          form.reset();
+          router.push('/login');
+        }
+    } catch(e) {
+        // This will likely be a server action error, which is already handled
+        // by Next.js's error boundary. We can add more specific client-side
+        // error handling here if needed.
+    } finally {
+        setIsLoading(false);
     }
-    if (result.success) {
-      form.reset();
-      router.push('/login');
-    }
-    
-    setIsLoading(false);
   };
 
   return (
