@@ -125,6 +125,18 @@ export function SidebarNav({ companyName }: { companyName: string }) {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
+              isActive={isActive('/dashboard/team-management')}
+              tooltip="Gestión de Equipo"
+            >
+              <Link href={`/dashboard/team-management`}>
+                <Users />
+                <span>Gestión de Equipo</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
               isActive={isActive('/dashboard/members')}
               tooltip="Members"
             >
