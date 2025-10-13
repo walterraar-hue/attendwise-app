@@ -16,7 +16,7 @@ import { useAuth, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword, User } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, updateDoc, doc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, increment, writeBatch } from 'firebase/firestore';
 
 
 const loginSchema = z.object({
@@ -43,15 +43,13 @@ const activatePendingUser = async (user: User, firestore: any): Promise<boolean>
     const pendingUserDoc = querySnapshot.docs[0];
     const companyId = pendingUserDoc.data().companyId;
     
-    // --- Start of the fix: Replace batch with sequential writes ---
+    // --- Start of the fix: Use sequential writes instead of a batch ---
 
-    // 1. Update the user document first
-    // This operation might fail due to permissions, as a newly logged-in user might not have
-    // rights to write to the 'users' collection immediately.
     try {
+        // 1. Update the user document first
         await updateDoc(pendingUserDoc.ref, { 
             status: 'active',
-            id: user.uid 
+            id: user.uid // This is the crucial step: associate the doc with the auth UID
         });
 
         // 2. Then, update the company's used slots
@@ -89,16 +87,17 @@ export default function LoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       
-      // After successful login, check if the user was pending and activate them.
-      // This is the part that is likely failing. We will wrap it in its own try/catch.
       let wasActivated = false;
       try {
         wasActivated = await activatePendingUser(user, firestore);
       } catch (activationError) {
-        // This is where the permission error is happening.
-        // For now, we will log it and allow the login to proceed.
-        // The user is authenticated, but their record in the DB is still 'pending'.
-        console.warn("User activation failed, but login succeeded. The user's status is still pending.", activationError);
+        console.warn("User activation failed. The user's status might still be pending.", activationError);
+        toast({
+            variant: "destructive",
+            title: "Fallo en la Activación de Cuenta",
+            description: "Has iniciado sesión, pero no pudimos activar tu cuenta. Contacta a tu administrador.",
+        });
+        // We still allow the user to proceed to the dashboard.
       }
 
 

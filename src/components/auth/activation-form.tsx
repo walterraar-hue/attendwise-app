@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, addDoc, collection } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -77,7 +77,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      const companyId = doc(collection(firestore, 'companies')).id;
+      const newCompanyRef = doc(collection(firestore, 'companies'));
 
       const roleLimits: Record<string, number> = {
         'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Employee': 0,
@@ -99,7 +99,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       }
 
       const companyData = {
-        id: companyId,
+        id: newCompanyRef.id,
         name: `${values.name}'s Company`,
         subscriptionPlan: plan,
         usedSlots: 1,
@@ -109,7 +109,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
       const userData = {
         id: user.uid,
-        companyId: companyId,
+        companyId: newCompanyRef.id,
         email: values.email,
         name: values.name,
         role: 'Global Admin',
@@ -119,8 +119,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const adminRoleData = { admin: true };
 
       const batch = writeBatch(firestore);
-      const companyDocRef = doc(firestore, 'companies', companyId);
-      batch.set(companyDocRef, companyData);
+      batch.set(newCompanyRef, companyData);
       const userDocRef = doc(firestore, 'users', user.uid);
       batch.set(userDocRef, userData);
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
@@ -162,14 +161,22 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     }
   };
 
-  const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
+ const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
     try {
-      // Step 1: Just create the user in Firebase Auth.
-      await createUserWithEmailAndPassword(auth, values.email, values.password);
+      // Step 1: Create the user in Firebase Auth.
+       await createUserWithEmailAndPassword(auth, values.email, values.password);
 
-      // Step 2: Inform the user and redirect to login.
-      // The activation logic will now happen AFTER they log in.
+      // Step 2: Create a 'pending' user document in Firestore.
+      // This document will be claimed upon first login.
+      await addDoc(collection(firestore, "users"), {
+          companyId: values.companyCode,
+          name: values.name,
+          email: values.email,
+          role: "Employee", // Default role, can be changed by admin
+          status: "pending"
+      });
+
       toast({
         title: "¡Cuenta Creada!",
         description: "Tu cuenta ha sido creada. Por favor, inicia sesión para activar tu membresía.",
@@ -261,4 +268,3 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
-
