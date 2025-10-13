@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, FirestorePermissionError, errorEmitter } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, getDoc } from "firebase/firestore";
+import { doc, writeBatch, getDoc, serverTimestamp } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -43,7 +43,7 @@ function SubmitButton({ mode, isLoading }: { mode: "admin" | "member", isLoading
   );
 }
 
-export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
+export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?: string }) {
   const { toast } = useToast();
   const router = useRouter();
   const auth = useAuth();
@@ -61,6 +61,11 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
 
   const handleAdminSubmit = async (values: z.infer<typeof adminSchema>) => {
     setIsLoading(true);
+    if (!plan) {
+      toast({ title: "Error", description: "No plan selected.", variant: "destructive" });
+      setIsLoading(false);
+      return;
+    }
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
@@ -70,11 +75,11 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
       const companyData = {
         id: companyId,
         name: `${values.name}'s Company`,
-        ownerId: user.uid,
-        subscriptionPlan: 'Pro',
-        userLimit: 10,
-        recordLimit: 1000,
+        subscriptionPlan: plan,
+        userLimit: plan === 'basic' ? 50 : plan === 'pro' ? 80 : Infinity,
+        recordLimit: 1000, // Placeholder
         usedSlots: 1,
+        createdAt: serverTimestamp()
       };
 
       const userData = {
@@ -110,11 +115,31 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
     } catch (error: any) {
       console.error("Error creating team:", error);
       
-      if (error.name === 'FirebaseError' && error.code.includes('permission-denied')) {
-        const permissionError = new FirestorePermissionError({
-            path: `BATCH WRITE`,
-            operation: 'write', 
-            requestResourceData: 'Multiple documents for admin signup'
+      if (error.code && error.code.includes('permission-denied')) {
+         const permissionError = new FirestorePermissionError({
+              path: `BATCH WRITE to companies, users, and roles_admin`,
+              operation: 'write', 
+              requestResourceData: {
+                company: {
+                    id: `COMP-TIMESTAMP`,
+                    name: `${values.name}'s Company`,
+                    subscriptionPlan: plan,
+                    userLimit: plan === 'basic' ? 50 : plan === 'pro' ? 80 : -1,
+                    recordLimit: 1000,
+                    usedSlots: 1,
+                },
+                user: {
+                    id: 'NEW_USER_UID',
+                    companyId: `COMP-TIMESTAMP`,
+                    email: values.email,
+                    name: values.name,
+                    role: 'Global Admin',
+                    status: 'active',
+                },
+                adminRole: {
+                    admin: true,
+                },
+              }
         });
         errorEmitter.emit('permission-error', permissionError);
       } else {
