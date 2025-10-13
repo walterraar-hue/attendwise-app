@@ -72,14 +72,31 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
       const companyId = `COMP-${Date.now()}`;
       
+      const roleLimits = {
+          'Global Admin': 1,
+          'Operations Manager': 0,
+          'CEO': 0,
+          'Member': 50,
+      };
+
+      if (plan === 'pro') {
+          roleLimits['Operations Manager'] = 1;
+          roleLimits['Member'] = 80;
+      } else if (plan === 'premium') {
+          roleLimits['Operations Manager'] = 2;
+          roleLimits['CEO'] = 1;
+          roleLimits['Member'] = -1; // Unlimited
+      }
+
       const companyData = {
         id: companyId,
         name: `${values.name}'s Company`,
         subscriptionPlan: plan,
-        userLimit: plan === 'basic' ? 50 : plan === 'pro' ? 80 : -1,
+        userLimit: roleLimits['Member'],
         recordLimit: 1000, // Placeholder
         usedSlots: 1,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        roleLimits: roleLimits,
       };
 
       const userData = {

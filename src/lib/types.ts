@@ -1,4 +1,4 @@
-export type UserRole = 'Global Admin' | 'Manager' | 'Employee';
+export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager' | 'Employee';
 
 export type UserStatus = 'active' | 'pending' | 'inactive';
 
@@ -16,10 +16,16 @@ export interface Company {
   id: string;
   name: string;
   subscription: {
-    plan: 'Basic' | 'Pro' | 'Enterprise';
+    plan: 'Basic' | 'Pro' | 'Premium';
     userLimit: number;
     recordLimit: number;
     usedSlots: number;
+    roleLimits: {
+        'Global Admin': number;
+        'Operations Manager': number;
+        'CEO': number;
+        'Member': number; // For Manager and Employee roles
+    }
   };
   policies: string;
 }

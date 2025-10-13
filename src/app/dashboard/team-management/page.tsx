@@ -1,20 +1,18 @@
-
-
 'use client'
 
 import Header from "@/components/dashboard/header";
-import { company as mockCompany, users as mockUsers } from "@/lib/data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Users, Star, Server } from "lucide-react";
+import { Copy, Users, Star, Server, User, Crown } from "lucide-react";
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
-import { useDoc, useCollection } from "@/firebase/firestore/use-doc";
-import { doc, collection, query, where } from "firebase/firestore";
+import { useDoc } from "@/firebase/firestore/use-doc";
+import { collection, query, where } from "firebase/firestore";
+import { useCollection } from "@/firebase/firestore/use-collection";
 import { useMemo } from "react";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import type { User as UserType, UserRole } from "@/lib/types";
 
 // A server component to display the invitation code.
 // In a real app, this might be a client component to handle the copy action.
@@ -58,11 +56,28 @@ function InvitationCode({ companyId }: { companyId: string }) {
   );
 }
 
-function PlanUsageCard({ company, users }: { company: any, users: any[] }) {
-    const usedSlots = company?.usedSlots || 0;
-    const userLimit = company?.userLimit || 0;
+function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
-    const progressValue = userLimit > 0 ? (usedSlots / userLimit) * 100 : 0;
+    const roleLimits = company?.roleLimits;
+
+    const roleCounts = useMemo(() => {
+        return users.reduce((acc, user) => {
+            if (user.role === 'Manager' || user.role === 'Employee') {
+                acc['Member'] = (acc['Member'] || 0) + 1;
+            } else {
+                acc[user.role] = (acc[user.role] || 0) + 1;
+            }
+            return acc;
+        }, {} as Record<UserRole | 'Member', number>);
+    }, [users]);
+    
+    const roleDetails: { name: string, limit: number, used: number, icon: React.ReactNode }[] = [
+        { name: 'Global Admin', limit: roleLimits?.['Global Admin'], used: roleCounts['Global Admin'] || 0, icon: <User className="size-5 text-red-500" /> },
+        { name: 'CEO', limit: roleLimits?.['CEO'], used: roleCounts['CEO'] || 0, icon: <Crown className="size-5 text-yellow-500" /> },
+        { name: 'Operations Manager', limit: roleLimits?.['Operations Manager'], used: roleCounts['Operations Manager'] || 0, icon: <Star className="size-5 text-blue-500" /> },
+        { name: 'Member', limit: roleLimits?.['Member'], used: roleCounts['Member'] || 0, icon: <Users className="size-5 text-green-500" /> },
+    ].filter(role => role.limit > 0 || (role.limit ===-1 && planName === 'premium') || role.used > 0);
+
 
     return (
         <Card>
@@ -74,35 +89,19 @@ function PlanUsageCard({ company, users }: { company: any, users: any[] }) {
                 <CardDescription>Resumen del uso de licencias de tu equipo.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div>
-                    <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium">Cupos Usados</span>
-                        <span className="text-sm font-bold">{usedSlots} / {userLimit === Infinity || userLimit === -1 ? 'Ilimitados' : userLimit}</span>
-                    </div>
-                    <Progress value={progressValue} aria-label={`${usedSlots} de ${userLimit} cupos usados`} />
-                </div>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-md">
-                        <Users className="size-5 text-primary" />
-                        <div>
-                            <p className="font-semibold">Miembros Totales</p>
-                            <p className="text-muted-foreground">{users.length}</p>
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Uso de Cupos por Rol</p>
+                   {roleDetails.map(role => (
+                        <div key={role.name} className="flex items-center justify-between p-3 bg-accent/50 rounded-md">
+                            <div className="flex items-center gap-3">
+                                {role.icon}
+                                <span className="font-semibold">{role.name}</span>
+                            </div>
+                            <Badge variant="outline">
+                                {role.used} / {role.limit === -1 ? 'Ilimitados' : role.limit}
+                            </Badge>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-md">
-                        <Star className="size-5 text-amber-500" />
-                        <div>
-                            <p className="font-semibold">Managers</p>
-                            <p className="text-muted-foreground">{users.filter(u => u.role === 'Manager').length}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-md">
-                        <Server className="size-5 text-green-500" />
-                        <div>
-                            <p className="font-semibold">Employees</p>
-                            <p className="text-muted-foreground">{users.filter(u => u.role === 'Employee').length}</p>
-                        </div>
-                    </div>
+                    ))}
                 </div>
 
                  <Button className="w-full" variant="outline">
@@ -119,7 +118,7 @@ export default function TeamManagementPage() {
     const firestore = useFirestore();
 
     const userDocRef = useMemoFirebase(() => {
-        if (!user) return null;
+        if (!user || !firestore) return null;
         return doc(firestore, 'users', user.uid);
     }, [user, firestore]);
     const { data: userData } = useDoc(userDocRef);
@@ -127,7 +126,7 @@ export default function TeamManagementPage() {
     const companyId = userData?.companyId;
 
     const companyDocRef = useMemoFirebase(() => {
-        if (!companyId) return null;
+        if (!companyId || !firestore) return null;
         return doc(firestore, 'companies', companyId);
     }, [companyId, firestore]);
     const { data: companyData } = useDoc(companyDocRef);
@@ -160,4 +159,3 @@ export default function TeamManagementPage() {
     </div>
   );
 }
-
