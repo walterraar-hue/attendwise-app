@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -46,6 +46,13 @@ const inviteFormSchema = z.object({
   role: z.string().min(1, "Role is required") as z.ZodType<UserRole>,
 });
 
+const ALL_ROLES_MAP = new Map<UserRole, string>([
+    ['CEO', 'CEO'],
+    ['Operations Manager', 'Admin de Operaciones'],
+    ['Manager', 'Manager'],
+    ['Employee', 'Miembro'],
+]);
+
 
 export function InviteMemberDialog({ company, users }: { company: { id: string, roleLimits?: Record<string, number>, usedSlots: number }; users: User[] }) {
   const [open, setOpen] = useState(false);
@@ -56,6 +63,22 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
     resolver: zodResolver(inviteFormSchema),
     defaultValues: { name: "", email: "", role: "Employee" },
   });
+
+  const availableRoles = useMemo(() => {
+    const limits = company.roleLimits || {};
+    const roles: { value: UserRole, label: string }[] = [];
+
+    ALL_ROLES_MAP.forEach((label, role) => {
+        const limit = limits[role];
+        // Allow if limit is explicitly set to be > 0 or is -1 (unlimited)
+        if (limit > 0 || limit === -1) {
+            roles.push({ value: role, label: label });
+        }
+    });
+
+    return roles;
+  }, [company.roleLimits]);
+
 
   const onSubmit = async (values: z.infer<typeof inviteFormSchema>) => {
     if (!adminUser || !company?.id) {
@@ -105,15 +128,6 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
         toast({ title: "Error", description: "No se pudo crear la invitación.", variant: "destructive" });
     }
   }
-
-  // Get available roles based on plan limits
-  const availableRoles = (Object.keys(company.roleLimits || {}) as UserRole[])
-    .filter(role => {
-        if (role === 'Global Admin') return false; // Cannot invite a global admin
-        const limit = company.roleLimits?.[role] ?? 0;
-        return limit > 0 || limit === -1;
-    });
-
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -171,9 +185,13 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                        {availableRoles.map(role => (
-                            <SelectItem key={role} value={role}>{role === 'Employee' ? 'Miembro' : role}</SelectItem>
-                        ))}
+                        {availableRoles.length > 0 ? (
+                            availableRoles.map(role => (
+                                <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
+                            ))
+                        ) : (
+                            <SelectItem value="loading" disabled>Cargando roles...</SelectItem>
+                        )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
