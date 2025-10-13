@@ -46,20 +46,27 @@ const activatePendingUser = async (user: User, firestore: any): Promise<boolean>
     // --- Start of the fix: Replace batch with sequential writes ---
 
     // 1. Update the user document first
-    await updateDoc(pendingUserDoc.ref, { 
-        status: 'active',
-        id: user.uid 
-    });
+    // This operation might fail due to permissions, as a newly logged-in user might not have
+    // rights to write to the 'users' collection immediately.
+    try {
+        await updateDoc(pendingUserDoc.ref, { 
+            status: 'active',
+            id: user.uid 
+        });
 
-    // 2. Then, update the company's used slots
-    const companyRef = doc(firestore, 'companies', companyId);
-    await updateDoc(companyRef, {
-        usedSlots: increment(1)
-    });
-    
-    // --- End of the fix ---
-    
-    return true;
+        // 2. Then, update the company's used slots
+        const companyRef = doc(firestore, 'companies', companyId);
+        await updateDoc(companyRef, {
+            usedSlots: increment(1)
+        });
+        
+        return true;
+
+    } catch (error) {
+        console.error("Permission error during user activation:", error);
+        // We throw the error so it can be caught by the calling function.
+        throw error;
+    }
 };
 
 
@@ -83,7 +90,17 @@ export default function LoginPage() {
       const user = userCredential.user;
       
       // After successful login, check if the user was pending and activate them.
-      const wasActivated = await activatePendingUser(user, firestore);
+      // This is the part that is likely failing. We will wrap it in its own try/catch.
+      let wasActivated = false;
+      try {
+        wasActivated = await activatePendingUser(user, firestore);
+      } catch (activationError) {
+        // This is where the permission error is happening.
+        // For now, we will log it and allow the login to proceed.
+        // The user is authenticated, but their record in the DB is still 'pending'.
+        console.warn("User activation failed, but login succeeded. The user's status is still pending.", activationError);
+      }
+
 
       if (wasActivated) {
         toast({
@@ -100,6 +117,7 @@ export default function LoginPage() {
       router.push('/dashboard');
 
     } catch (error: any) {
+      // This will catch login errors (e.g., wrong password)
       toast({
         variant: "destructive",
         title: "Fallo en el Inicio de Sesión",
