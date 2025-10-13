@@ -100,6 +100,19 @@ export default function PricingPage() {
             </Card>
           ))}
         </div>
+
+        <footer className="text-center mt-12">
+            <p className="text-muted-foreground">
+                ¿Ya tienes un código de invitación?{' '}
+                <Link href="/register/member" className="text-primary font-semibold hover:underline">
+                Únete a un equipo existente
+                </Link>{' '}
+                o{' '}
+                <Link href="/login" className="text-primary font-semibold hover:underline">
+                Inicia sesión
+                </Link>
+            </p>
+        </footer>
       </div>
     </div>
   );
