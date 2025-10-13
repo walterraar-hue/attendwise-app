@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction, updateDoc } from "firebase/firestore";
+import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction } from "firebase/firestore";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 
@@ -140,7 +140,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         });
       } else if (error.code && error.code.includes('permission-denied')) {
          const permissionError = new FirestorePermissionError({
-              path: `BATCH WRITE`,
+              path: `BATCH WRITE to admin, user, and company`,
               operation: 'write', 
               requestResourceData: { 
                   "Note": "This was a batch write. The error could be on any of the following documents.",
@@ -168,7 +168,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
-        // Now that the user is created and signed in, we can perform the Firestore updates.
         await runTransaction(firestore, async (transaction) => {
             const pendingUserQuery = query(
                 collection(firestore, "users"),
@@ -186,8 +185,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
             const pendingUserDoc = pendingUserSnapshot.docs[0];
             const pendingUserRef = pendingUserDoc.ref;
-            const pendingUserData = pendingUserDoc.data();
-
+            
             const companyRef = doc(firestore, "companies", values.companyCode);
             const companySnap = await transaction.get(companyRef);
 
@@ -197,19 +195,14 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             
             const companyData = companySnap.data();
 
-            // Create a new document with the user's UID
-            const newUserRef = doc(firestore, "users", user.uid);
-            transaction.set(newUserRef, {
-                ...pendingUserData,
-                id: user.uid, // Explicitly set the ID to the UID
+            // KEY CHANGE: Update the existing document instead of creating a new one.
+            transaction.update(pendingUserRef, {
                 status: 'active',
                 name: values.name,
+                id: user.uid, // This is the crucial part: stamp the new UID onto the document
             });
-
-            // Delete the old pending user document
-            transaction.delete(pendingUserRef);
-
-            // Update the company's used slots
+            
+            // Update company used slots
             transaction.update(companyRef, { usedSlots: (companyData.usedSlots || 0) + 1 });
         });
 
@@ -217,20 +210,30 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         router.push('/login');
 
     } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        toast({
-          variant: "destructive",
-          title: "Correo electrónico en uso",
-          description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
-        });
-      } else {
-        // This will catch transaction failures or other errors.
-        toast({
-            title: "Error de Activación",
-            description: error.message || "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.",
-            variant: "destructive",
-        });
-      }
+        if (error.code === 'auth/email-already-in-use') {
+            toast({
+              variant: "destructive",
+              title: "Correo electrónico en uso",
+              description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
+            });
+        } else if (error.code && error.code.includes('permission-denied')) {
+          const permissionError = new FirestorePermissionError({
+                path: `BATCH WRITE to users and companies`,
+                operation: 'update', 
+                requestResourceData: { 
+                    "Note": "This was a batch write to activate a user.",
+                    "/users/{pendingUserId}": { status: "active", name: values.name },
+                    "/companies/{companyId}": { usedSlots: "increment" }
+                }
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+            toast({
+                title: "Error de Activación",
+                description: error.message || "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.",
+                variant: "destructive",
+            });
+        }
     } finally {
         setIsLoading(false);
     }
