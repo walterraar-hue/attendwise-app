@@ -63,7 +63,19 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
     const roleLimits = company?.roleLimits || {};
     const usedSlots = company?.usedSlots || 0;
-    const memberLimit = roleLimits['Employee'] === -1 ? Infinity : (roleLimits['Manager'] ?? 0) + (roleLimits['Employee'] ?? 0);
+
+    const memberLimit = useMemo(() => {
+        if (!roleLimits) return 0;
+        const employeeLimit = roleLimits['Employee'] ?? 0;
+        if (employeeLimit === -1) return Infinity;
+
+        // Sum all limits except Global Admin which is usually separate
+        return (roleLimits['Employee'] ?? 0) + 
+               (roleLimits['Manager'] ?? 0) + 
+               (roleLimits['Operations Manager'] ?? 0) + 
+               (roleLimits['CEO'] ?? 0);
+    }, [roleLimits]);
+
 
     const roleCounts = useMemo(() => {
         const counts: Record<string, number> = {
@@ -98,7 +110,7 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
                 used: roleCounts[role.name] ?? 0,
             };
         })
-        .filter(role => role.limit > 0 || role.limit === -1);
+        .filter(role => role.limit !== undefined && role.limit !== 0);
 
 
     return (
