@@ -12,7 +12,7 @@ import { collection, query, where, doc } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { User as UserType, UserRole } from "@/lib/types";
+import type { User as UserType } from "@/lib/types";
 
 // A server component to display the invitation code.
 // In a real app, this might be a client component to handle the copy action.
@@ -58,7 +58,7 @@ function InvitationCode({ companyId }: { companyId: string }) {
 
 function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
-    const roleLimits = company?.roleLimits;
+    const roleLimits = company?.roleLimits || {};
 
     const roleCounts = useMemo(() => {
         const counts: Record<string, number> = {
@@ -73,7 +73,7 @@ function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) 
                 counts[user.role]++;
             }
         });
-        const memberCount = (counts['Manager'] || 0) + (counts['Employee'] || 0);
+        const memberCount = counts['Manager'] + counts['Employee'];
         return {
             'Global Admin': counts['Global Admin'],
             'CEO': counts['CEO'],
@@ -83,10 +83,10 @@ function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) 
     }, [users]);
     
     const roleDetails: { name: string, limit: number, used: number, icon: React.ReactNode }[] = [
-        { name: 'Global Admin', limit: roleLimits?.['Global Admin'], used: roleCounts['Global Admin'], icon: <User className="size-5 text-red-500" /> },
-        { name: 'CEO', limit: roleLimits?.['CEO'], used: roleCounts['CEO'], icon: <Crown className="size-5 text-yellow-500" /> },
-        { name: 'Operations Manager', limit: roleLimits?.['Operations Manager'], used: roleCounts['Operations Manager'], icon: <Star className="size-5 text-blue-500" /> },
-        { name: 'Member', limit: roleLimits?.['Member'], used: roleCounts['Member'], icon: <Users className="size-5 text-green-500" /> },
+        { name: 'Global Admin', limit: roleLimits['Global Admin'], used: roleCounts['Global Admin'], icon: <User className="size-5 text-red-500" /> },
+        { name: 'CEO', limit: roleLimits['CEO'], used: roleCounts['CEO'], icon: <Crown className="size-5 text-yellow-500" /> },
+        { name: 'Operations Manager', limit: roleLimits['Operations Manager'], used: roleCounts['Operations Manager'], icon: <Star className="size-5 text-blue-500" /> },
+        { name: 'Member', limit: roleLimits['Member'], used: roleCounts['Member'], icon: <Users className="size-5 text-green-500" /> },
     ].filter(role => role.limit !== 0 && role.limit !== undefined);
 
 
