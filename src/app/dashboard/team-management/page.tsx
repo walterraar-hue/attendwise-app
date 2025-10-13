@@ -79,18 +79,18 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
         return counts;
     }, [users]);
     
-    const allRoles: { name: string; icon: React.ReactNode }[] = [
-        { name: 'Global Admin', icon: <UserIcon className="size-5 text-red-500" /> },
-        { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" /> },
-        { name: 'Operations Manager', icon: <Star className="size-5 text-blue-500" /> },
-        { name: 'Manager', icon: <UserCog className="size-5 text-indigo-500" /> },
-        { name: 'Employee', icon: <Users className="size-5 text-green-500" /> },
+    const allRoles: { name: string; icon: React.ReactNode; displayName: string }[] = [
+        { name: 'Global Admin', icon: <UserIcon className="size-5 text-red-500" />, displayName: 'Global Admin' },
+        { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" />, displayName: 'CEO' },
+        { name: 'Operations Manager', icon: <Star className="size-5 text-blue-500" />, displayName: 'Admin de Operaciones' },
+        { name: 'Manager', icon: <UserCog className="size-5 text-indigo-500" />, displayName: 'Manager' },
+        { name: 'Employee', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
     ];
 
     const roleDetails = allRoles
         .map(role => ({
             ...role,
-            limit: roleLimits[role.name] ?? 0,
+            limit: roleLimits[role.name], // Can be undefined, number, or -1
             used: roleCounts[role.name] ?? 0,
         }))
         .filter(role => role.limit !== 0 && role.limit !== undefined);
@@ -108,17 +108,19 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
             <CardContent className="space-y-4">
                 <div className="space-y-3">
                   <p className="text-sm font-medium">Uso de Cupos por Rol</p>
-                   {roleDetails.map(role => (
+                   {roleDetails.length > 0 ? roleDetails.map(role => (
                         <div key={role.name} className="flex items-center justify-between p-3 bg-accent/50 rounded-md">
                             <div className="flex items-center gap-3">
                                 {role.icon}
-                                <span className="font-semibold">{role.name === 'Employee' ? 'Miembros' : role.name}</span>
+                                <span className="font-semibold">{role.displayName}</span>
                             </div>
                             <Badge variant="outline">
                                 {role.used} / {role.limit === -1 ? 'Ilimitados' : role.limit}
                             </Badge>
                         </div>
-                    ))}
+                    )) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">No hay información de cupos disponible.</p>
+                    )}
                 </div>
 
                  <Button className="w-full" variant="outline">
