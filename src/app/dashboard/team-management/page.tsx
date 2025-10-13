@@ -101,12 +101,12 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
         .filter(role => role.limit !== 0); // Only show roles that are part of the plan
 
     const totalMemberLimit = useMemo(() => {
-        const limit = Object.values(roleLimits).reduce((acc: number, currentLimit: any) => {
-            if (typeof currentLimit !== 'number') return acc;
-            if (currentLimit === -1) return Infinity;
-            return acc + currentLimit;
+        return Object.values(roleLimits).reduce((acc: number, limit: any) => {
+            if (typeof limit !== 'number') return acc;
+            // If any role is unlimited, the total is effectively unlimited.
+            if (limit === -1) return Infinity;
+            return acc + limit;
         }, 0);
-        return limit;
     }, [roleLimits]);
 
 
@@ -186,9 +186,9 @@ export default function TeamManagementPage() {
         return query(collection(firestore, 'users'), where('companyId', '==', companyId));
     }, [companyId, firestore]);
 
-    const { data: companyUsers } = useCollection(usersQuery);
+    const { data: companyUsers, isLoading: usersLoading } = useCollection(usersQuery);
 
-    const isLoading = !companyData || !companyUsers;
+    const isLoading = !companyData || usersLoading;
 
 
   return (
@@ -197,16 +197,19 @@ export default function TeamManagementPage() {
         <Header title="Gestión de Equipo" />
         {companyData && <InviteMemberDialog company={companyData as any} />}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-8">
         {isLoading ? (
-             <Card>
+             <Card className="lg:col-span-2">
                 <CardHeader>
                     <Skeleton className="h-6 w-3/4" />
                     <Skeleton className="h-4 w-1/2" />
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="space-y-2">
-                        <Skeleton className="h-4 w-1/3" />
+                        <div className="flex justify-between">
+                            <Skeleton className="h-4 w-1/3" />
+                            <Skeleton className="h-5 w-1/4" />
+                        </div>
                         <Skeleton className="h-4 w-full" />
                     </div>
                     <Separator />
@@ -218,11 +221,13 @@ export default function TeamManagementPage() {
                 </CardContent>
             </Card>
         ) : (
-            <>
-                <PlanUsageCard company={companyData} users={companyUsers || []} />
-                <InvitationCode companyId={companyId || ''} />
-            </>
+            <div className="lg:col-span-2 grid grid-cols-1 gap-8">
+              <PlanUsageCard company={companyData} users={companyUsers || []} />
+            </div>
         )}
+         <div className="lg:col-span-1">
+            <InvitationCode companyId={companyId || ''} />
+         </div>
       </div>
       
       <Separator />
@@ -239,5 +244,3 @@ export default function TeamManagementPage() {
     </div>
   );
 }
-
-    
