@@ -14,7 +14,7 @@ import { collection, query, where, doc } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { User } from "@/lib/types";
+import type { User, UserRole } from "@/lib/types";
 import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
@@ -66,43 +66,26 @@ function InvitationCode({ companyId }: { companyId: string }) {
 function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
     
-    const allPossibleRoles: { name: keyof User['role'] | 'Miembros' ; icon: React.ReactNode; displayName: string }[] = [
+    const allPossibleRoles: { name: UserRole; icon: React.ReactNode; displayName: string }[] = [
         { name: 'Global Admin', icon: <UserIcon className="size-5 text-red-500" />, displayName: 'Global Admin' },
         { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" />, displayName: 'CEO' },
         { name: 'Operations Manager', icon: <Star className="size-5 text-blue-500" />, displayName: 'Admin de Operaciones' },
         { name: 'Manager', icon: <UserCog className="size-5 text-indigo-500" />, displayName: 'Manager' },
-        { name: 'Miembros', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
+        { name: 'Employee', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
     ];
 
-    const roleCounts = useMemo(() => {
-        const counts: Record<string, number> = {};
-        allPossibleRoles.forEach(role => {
-             counts[role.name === 'Miembros' ? 'Employee' : role.name] = 0;
-        });
-        users.forEach(user => {
-            if (counts.hasOwnProperty(user.role)) {
-                counts[user.role]++;
-            }
-        });
-        return counts;
-    }, [users]);
-    
     const roleDetails = useMemo(() => {
         const companyRoleLimits = company?.roleLimits || {};
+        
         return allPossibleRoles
-            .map(role => {
-                const roleKey = role.name === 'Miembros' ? 'Employee' : role.name;
-                const limit = companyRoleLimits[roleKey] ?? 0;
-                return {
-                    ...role,
-                    limit: limit,
-                    used: roleCounts[roleKey] ?? 0,
-                };
+            .map(roleInfo => {
+                const limit = companyRoleLimits[roleInfo.name] ?? 0;
+                const used = users.filter(u => u.role === roleInfo.name).length;
+                return { ...roleInfo, limit, used };
             })
             .filter(role => role.limit !== 0); // Only show roles that are part of the plan
-    }, [company, roleCounts]);
-
-
+    }, [company, users]);
+    
     const totalMemberLimit = useMemo(() => {
         if (roleDetails.some(role => role.limit === -1)) {
             return Infinity;

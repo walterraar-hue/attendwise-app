@@ -88,7 +88,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       } else if (plan === 'premium') {
           roleLimits['CEO'] = 1;
           roleLimits['Operations Manager'] = 2;
-          roleLimits['Manager'] = 10;
+          roleLimits['Manager'] = -1; // Unlimited
           roleLimits['Employee'] = -1; // Unlimited
       }
 
