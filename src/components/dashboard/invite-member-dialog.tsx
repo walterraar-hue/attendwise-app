@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -14,7 +15,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
 import {
@@ -70,12 +70,12 @@ export function InviteMemberDialog({ company }: { company: { roleLimits?: Record
       <DialogTrigger asChild>
         <Button>
           <UserPlus className="mr-2 h-4 w-4" />
-          Invitar Miembro
+          Invitar Usuario
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Invitar a un nuevo miembro</DialogTitle>
+          <DialogTitle>Invitar a un nuevo usuario</DialogTitle>
           <DialogDescription>
             Introduce los detalles a continuación para enviar una invitación. Se les pedirá que configuren su cuenta.
           </DialogDescription>

@@ -14,13 +14,13 @@ import { collection, query, where, doc } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { User } from "@/lib/types";
+import type { User, UserRole } from "@/lib/types";
 import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
 import { MembersTable } from "@/components/dashboard/members-table";
-import type { UserRole } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+
 
 // A server component to display the invitation code.
 // In a real app, this might be a client component to handle the copy action.
@@ -64,10 +64,9 @@ function InvitationCode({ companyId }: { companyId: string }) {
   );
 }
 
-function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
+function PlanUsageCard({ company, users }: { company: any; users: User[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
-    
-    // Master list of all possible roles and their display names/icons
+
     const allPossibleRoles: { name: UserRole; icon: React.ReactNode; displayName: string }[] = [
         { name: 'Global Admin', icon: <UserIcon className="size-5 text-red-500" />, displayName: 'Global Admin' },
         { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" />, displayName: 'CEO' },
@@ -76,31 +75,23 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
         { name: 'Employee', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
     ];
 
-    // Safely calculate role usage details
     const roleDetails = useMemo(() => {
         const companyRoleLimits = company?.roleLimits || {};
-        
         return allPossibleRoles
             .map(roleInfo => {
-                // Safely get the limit, default to 0 if not present
                 const limit = companyRoleLimits[roleInfo.name] ?? 0;
                 const used = users.filter(u => u.role === roleInfo.name).length;
                 return { ...roleInfo, limit, used };
             })
-            // Only show roles that are actually part of the plan (limit > 0 or unlimited)
-            .filter(role => role.limit !== 0); 
+            .filter(role => role.limit > 0 || role.limit === -1); // Only show roles that are actually part of the plan
     }, [company, users]);
-    
-    // Calculate total limits and usage based on the filtered roles that are part of the plan
+
     const { totalMemberLimit, usedSlots } = useMemo(() => {
-        const used = users.length;
         const totalLimit = roleDetails.reduce((acc, role) => {
-            // If any role is unlimited, the total is unlimited
-            if (role.limit === -1) return Infinity;
-            // Otherwise, add the limit to the accumulator
+            if (role.limit === -1) return Infinity; // If any role is unlimited, we can't sum it up in a finite way.
             return acc + role.limit;
         }, 0);
-        return { totalMemberLimit: totalLimit, usedSlots: used };
+        return { totalMemberLimit: totalLimit, usedSlots: users.length };
     }, [roleDetails, users]);
 
     return (
@@ -230,7 +221,7 @@ export default function TeamManagementPage() {
         {isLoading || !companyUsers ? (
             <p>Cargando miembros...</p>
         ) : (
-            <MembersTable data={companyUsers} />
+            <MembersTable data={companyUsers || []} />
         )}
       </div>
 
