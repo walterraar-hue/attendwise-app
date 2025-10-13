@@ -78,10 +78,12 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           'CEO': 0,
           'Operations Manager': 0,
           'Manager': 0,
-          'Employee': 50,
+          'Employee': 0,
       };
 
-      if (plan === 'pro') {
+      if (plan === 'basic') {
+          roleLimits['Employee'] = 50;
+      } else if (plan === 'pro') {
           roleLimits['Operations Manager'] = 1;
           roleLimits['Manager'] = 5;
           roleLimits['Employee'] = 80;
@@ -290,7 +292,3 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
-
-    
-
-    

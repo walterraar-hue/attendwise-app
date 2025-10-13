@@ -14,12 +14,13 @@ import { collection, query, where, doc } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { User, UserRole } from "@/lib/types";
+import type { User } from "@/lib/types";
 import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MembersTable } from "@/components/dashboard/members-table";
+import type { UserRole } from "@/lib/types";
 
 // A server component to display the invitation code.
 // In a real app, this might be a client component to handle the copy action.
@@ -66,6 +67,7 @@ function InvitationCode({ companyId }: { companyId: string }) {
 function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
     
+    // Master list of all possible roles and their display names/icons
     const allPossibleRoles: { name: UserRole; icon: React.ReactNode; displayName: string }[] = [
         { name: 'Global Admin', icon: <UserIcon className="size-5 text-red-500" />, displayName: 'Global Admin' },
         { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" />, displayName: 'CEO' },
@@ -74,26 +76,32 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
         { name: 'Employee', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
     ];
 
+    // Safely calculate role usage details
     const roleDetails = useMemo(() => {
         const companyRoleLimits = company?.roleLimits || {};
         
         return allPossibleRoles
             .map(roleInfo => {
+                // Safely get the limit, default to 0 if not present
                 const limit = companyRoleLimits[roleInfo.name] ?? 0;
                 const used = users.filter(u => u.role === roleInfo.name).length;
                 return { ...roleInfo, limit, used };
             })
-            .filter(role => role.limit !== 0); // Only show roles that are part of the plan
+            // Only show roles that are actually part of the plan (limit > 0 or unlimited)
+            .filter(role => role.limit !== 0); 
     }, [company, users]);
     
-    const totalMemberLimit = useMemo(() => {
-        return roleDetails.reduce((acc, role) => {
+    // Calculate total limits and usage based on the filtered roles that are part of the plan
+    const { totalMemberLimit, usedSlots } = useMemo(() => {
+        const used = users.length;
+        const totalLimit = roleDetails.reduce((acc, role) => {
+            // If any role is unlimited, the total is unlimited
             if (role.limit === -1) return Infinity;
+            // Otherwise, add the limit to the accumulator
             return acc + role.limit;
         }, 0);
-    }, [roleDetails]);
-    
-    const usedSlots = users.length;
+        return { totalMemberLimit: totalLimit, usedSlots: used };
+    }, [roleDetails, users]);
 
     return (
         <Card>
@@ -112,7 +120,7 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
                             {usedSlots} / {totalMemberLimit === Infinity ? 'Ilimitados' : totalMemberLimit}
                         </p>
                     </div>
-                     <Progress value={totalMemberLimit === Infinity ? 0 : (usedSlots / totalMemberLimit) * 100} />
+                     <Progress value={totalMemberLimit === Infinity || totalMemberLimit === 0 ? 0 : (usedSlots / totalMemberLimit) * 100} />
                 </div>
                  
                 <Separator />
@@ -164,7 +172,7 @@ export default function TeamManagementPage() {
         if (!companyId || !firestore) return null;
         return doc(firestore, 'companies', companyId);
     }, [companyId, firestore]);
-    const { data: companyData } = useDoc(companyDocRef);
+    const { data: companyData, isLoading: companyLoading } = useDoc(companyDocRef);
 
     const usersQuery = useMemoFirebase(() => {
         if (!companyId || !firestore) return null;
@@ -173,7 +181,7 @@ export default function TeamManagementPage() {
 
     const { data: companyUsers, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
-    const isLoading = !companyData || usersLoading || !companyUsers;
+    const isLoading = companyLoading || usersLoading;
 
 
   return (
@@ -219,15 +227,13 @@ export default function TeamManagementPage() {
 
       <div className="space-y-4 mt-8">
         <Header title="Miembros del Equipo" />
-        {isLoading ? (
+        {isLoading || !companyUsers ? (
             <p>Cargando miembros...</p>
         ) : (
-            <MembersTable data={companyUsers || []} />
+            <MembersTable data={companyUsers} />
         )}
       </div>
 
     </div>
   );
 }
-
-    
