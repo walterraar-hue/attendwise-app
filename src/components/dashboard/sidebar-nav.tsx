@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, Settings, LogOut, Timer, ClipboardCheck, History, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Timer, ClipboardCheck, History, CalendarDays, TrendingUp } from 'lucide-react';
 import {
   SidebarHeader,
   SidebarContent,
@@ -50,6 +50,34 @@ export function SidebarNav({ role, companyName }: { role: Role, companyName: str
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {role === 'admin' && (
+            <SidebarMenuItem>
+                <SidebarMenuButton
+                asChild
+                isActive={isActive('/dashboard/gm-indicators')}
+                tooltip="Indicadores Gerente General"
+                >
+                <Link href={`/dashboard/gm-indicators?role=${role}`}>
+                    <TrendingUp />
+                    <span>Indicadores Gerente General</span>
+                </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+           {role === 'manager' && (
+            <SidebarMenuItem>
+                <SidebarMenuButton
+                asChild
+                isActive={isActive('/dashboard/om-indicators')}
+                tooltip="Indicadores Gerente Op."
+                >
+                <Link href={`/dashboard/om-indicators?role=${role}`}>
+                    <TrendingUp />
+                    <span>Indicadores Gerente Op.</span>
+                </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
            <SidebarMenuItem>
             <SidebarMenuButton
               asChild
