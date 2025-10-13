@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Users, Star, User as UserIcon, Crown, UserCog, Building } from "lucide-react";
+import { Copy, Users, Star, User as UserIcon, Crown, UserCog } from "lucide-react";
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { collection, query, where, doc } from "firebase/firestore";
@@ -19,6 +19,7 @@ import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog"
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MembersTable } from "@/components/dashboard/members-table";
 
 // A server component to display the invitation code.
 // In a real app, this might be a client component to handle the copy action.
@@ -64,21 +65,19 @@ function InvitationCode({ companyId }: { companyId: string }) {
 
 function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
-    const roleLimits = company?.roleLimits || {};
-    const usedSlots = users.length;
-
-    const allPossibleRoles: { name: string; icon: React.ReactNode; displayName: string }[] = [
+    
+    const allPossibleRoles: { name: keyof User['role'] | 'Miembros' ; icon: React.ReactNode; displayName: string }[] = [
         { name: 'Global Admin', icon: <UserIcon className="size-5 text-red-500" />, displayName: 'Global Admin' },
         { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" />, displayName: 'CEO' },
         { name: 'Operations Manager', icon: <Star className="size-5 text-blue-500" />, displayName: 'Admin de Operaciones' },
         { name: 'Manager', icon: <UserCog className="size-5 text-indigo-500" />, displayName: 'Manager' },
-        { name: 'Employee', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
+        { name: 'Miembros', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
     ];
 
     const roleCounts = useMemo(() => {
         const counts: Record<string, number> = {};
         allPossibleRoles.forEach(role => {
-            counts[role.name] = 0;
+             counts[role.name === 'Miembros' ? 'Employee' : role.name] = 0;
         });
         users.forEach(user => {
             if (counts.hasOwnProperty(user.role)) {
@@ -89,26 +88,29 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     }, [users]);
     
     const roleDetails = useMemo(() => {
+        const companyRoleLimits = company?.roleLimits || {};
         return allPossibleRoles
             .map(role => {
-                const limit = roleLimits[role.name] ?? 0;
+                const roleKey = role.name === 'Miembros' ? 'Employee' : role.name;
+                const limit = companyRoleLimits[roleKey] ?? 0;
                 return {
                     ...role,
                     limit: limit,
-                    used: roleCounts[role.name] ?? 0,
+                    used: roleCounts[roleKey] ?? 0,
                 };
             })
             .filter(role => role.limit !== 0); // Only show roles that are part of the plan
-    }, [roleLimits, roleCounts]);
+    }, [company, roleCounts]);
 
 
     const totalMemberLimit = useMemo(() => {
         if (roleDetails.some(role => role.limit === -1)) {
             return Infinity;
         }
-        return roleDetails.reduce((acc, role) => acc + role.limit, 0);
+        return roleDetails.reduce((acc, role) => acc + (role.limit > 0 ? role.limit : 0), 0);
     }, [roleDetails]);
-
+    
+    const usedSlots = users.length;
 
     return (
         <Card>
@@ -244,5 +246,3 @@ export default function TeamManagementPage() {
     </div>
   );
 }
-
-    
