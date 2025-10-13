@@ -79,13 +79,7 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit((data) => {
-          const formData = new FormData();
-          Object.entries(data).forEach(([key, value]) => {
-            formData.append(key, value as string);
-          });
-          formAction(formData);
-        })}
+        action={formAction}
         className="space-y-4"
       >
         {!isPendingUserFlow && (
