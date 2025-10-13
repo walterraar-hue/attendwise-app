@@ -1,18 +1,7 @@
 import Header from "@/components/dashboard/header";
 import { users } from "@/lib/data";
-import { redirect } from "next/navigation";
 
-export default function GeneralManagerIndicatorsPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
-  const role = searchParams?.role;
-
-  if (role !== 'admin') {
-    redirect(`/dashboard?role=${role || 'manager'}`);
-  }
-
+export default function GeneralManagerIndicatorsPage() {
   const currentUser = users.find(u => u.role === 'Global Admin')!;
 
   return (

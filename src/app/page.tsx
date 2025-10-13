@@ -20,24 +20,17 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="manager@example.com" />
+              <Input id="email" type="email" placeholder="manager@example.com" defaultValue="admin@example.com" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" />
+              <Input id="password" type="password" defaultValue="password" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Button asChild>
-                <Link href="/dashboard?role=manager">
-                  Login as Manager
-                </Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/dashboard?role=admin">
-                  Login as Admin
-                </Link>
-              </Button>
-            </div>
+            <Button asChild className="w-full">
+              <Link href="/dashboard">
+                Login
+              </Link>
+            </Button>
             <div className="flex items-center gap-4">
               <Separator className="flex-1" />
               <span className="text-xs text-muted-foreground">OR</span>

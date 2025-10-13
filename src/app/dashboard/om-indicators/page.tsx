@@ -1,18 +1,7 @@
 import Header from "@/components/dashboard/header";
 import { users } from "@/lib/data";
-import { redirect } from "next/navigation";
 
-export default function OperationsManagerIndicatorsPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
-  const role = searchParams?.role;
-
-  if (role !== 'manager') {
-    redirect(`/dashboard?role=${role || 'admin'}`);
-  }
-
+export default function OperationsManagerIndicatorsPage() {
   const currentUser = users.find(u => u.role === 'Manager')!;
 
   return (

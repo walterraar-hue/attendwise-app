@@ -12,14 +12,14 @@ import {
   SidebarFooter,
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
-import { Role } from '@/lib/types';
 import Logo from '../logo';
 import { Badge } from '../ui/badge';
 
 
-export function SidebarNav({ role, companyName }: { role: Role, companyName: string }) {
+export function SidebarNav({ companyName }: { companyName: string }) {
   const pathname = usePathname();
   const isActive = (path: string) => pathname === path;
+  const role = 'admin'; // Show all links
 
   return (
     <>
@@ -31,7 +31,7 @@ export function SidebarNav({ role, companyName }: { role: Role, companyName: str
             <div className="flex flex-col">
                 <span className="font-semibold text-lg">{companyName}</span>
                 <Badge variant="secondary" className="w-fit">
-                    {role === 'admin' ? 'Admin Portal' : 'Manager Portal'}
+                    Unified Portal
                 </Badge>
             </div>
         </div>
@@ -44,47 +44,43 @@ export function SidebarNav({ role, companyName }: { role: Role, companyName: str
               isActive={isActive('/dashboard')}
               tooltip="Dashboard"
             >
-              <Link href={`/dashboard?role=${role}`}>
+              <Link href={`/dashboard`}>
                 <LayoutDashboard />
                 <span>Dashboard</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          {role === 'admin' && (
-            <SidebarMenuItem>
-                <SidebarMenuButton
-                asChild
-                isActive={isActive('/dashboard/gm-indicators')}
-                tooltip="Indicadores Gerente General"
-                >
-                <Link href={`/dashboard/gm-indicators?role=${role}`}>
-                    <TrendingUp />
-                    <span>Indicadores Gerente General</span>
-                </Link>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
-           {role === 'manager' && (
-            <SidebarMenuItem>
-                <SidebarMenuButton
-                asChild
-                isActive={isActive('/dashboard/om-indicators')}
-                tooltip="Indicadores Gerente Op."
-                >
-                <Link href={`/dashboard/om-indicators?role=${role}`}>
-                    <TrendingUp />
-                    <span>Indicadores Gerente Op.</span>
-                </Link>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
+          <SidebarMenuItem>
+              <SidebarMenuButton
+              asChild
+              isActive={isActive('/dashboard/gm-indicators')}
+              tooltip="Indicadores Gerente General"
+              >
+              <Link href={`/dashboard/gm-indicators`}>
+                  <TrendingUp />
+                  <span>Indicadores Gerente General</span>
+              </Link>
+              </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+              <SidebarMenuButton
+              asChild
+              isActive={isActive('/dashboard/om-indicators')}
+              tooltip="Indicadores Gerente Op."
+              >
+              <Link href={`/dashboard/om-indicators`}>
+                  <TrendingUp />
+                  <span>Indicadores Gerente Op.</span>
+              </Link>
+              </SidebarMenuButton>
+          </SidebarMenuItem>
            <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               isActive={isActive('/dashboard/register-attendance')}
               tooltip="Registrar Asistencia"
             >
-              <Link href={`/dashboard/register-attendance?role=${role}`}>
+              <Link href={`/dashboard/register-attendance`}>
                 <ClipboardCheck />
                 <span>Registrar Asistencia</span>
               </Link>
@@ -96,7 +92,7 @@ export function SidebarNav({ role, companyName }: { role: Role, companyName: str
               isActive={isActive('/dashboard/my-history')}
               tooltip="Mi Historial"
             >
-              <Link href={`/dashboard/my-history?role=${role}`}>
+              <Link href={`/dashboard/my-history`}>
                 <History />
                 <span>Mi Historial</span>
               </Link>
@@ -108,32 +104,30 @@ export function SidebarNav({ role, companyName }: { role: Role, companyName: str
               isActive={isActive('/dashboard/attendance')}
               tooltip="Asistencia"
             >
-              <Link href={`/dashboard/attendance?role=${role}`}>
+              <Link href={`/dashboard/attendance`}>
                 <CalendarDays />
                 <span>Asistencia</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          {role === 'admin' && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={isActive('/dashboard/members')}
-                tooltip="Members"
-              >
-                <Link href={`/dashboard/members?role=${role}`}>
-                  <Users />
-                  <span>Members</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive('/dashboard/members')}
+              tooltip="Members"
+            >
+              <Link href={`/dashboard/members`}>
+                <Users />
+                <span>Members</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton 
               asChild 
               isActive={isActive('/dashboard/settings')}
               tooltip="Configuración">
-              <Link href={`/dashboard/settings?role=${role}`}>
+              <Link href={`/dashboard/settings`}>
                 <Settings />
                 <span>Configuración</span>
               </Link>
