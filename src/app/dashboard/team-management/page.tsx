@@ -1,5 +1,5 @@
 import Header from "@/components/dashboard/header";
-import { users, company } from "@/lib/data";
+import { company } from "@/lib/data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,12 +45,10 @@ function InvitationCode() {
 
 
 export default function TeamManagementPage() {
-  const currentUser = users.find(u => u.role === 'Global Admin')!;
-
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
-        <Header user={currentUser} title="Gestión de Equipo" />
+        <Header title="Gestión de Equipo" />
       </div>
       <div className="max-w-2xl">
         <InvitationCode />

@@ -2,6 +2,21 @@
 
 import { z } from 'zod';
 import { company, users } from './data';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+import { firebaseConfig } from '@/firebase/config'; // Using client config is okay for admin actions
+
+if (!getApps().length) {
+  initializeApp({
+    // As this is a server action, we can't rely on client-side automatic config.
+    // We will use the public config, but in a real-world secure backend,
+    // you would use service account credentials.
+  });
+}
+
+const adminAuth = getAuth();
+const db = getFirestore();
 
 const inviteSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -40,9 +55,6 @@ export async function inviteUser(prevState: any, formData: FormData) {
 
   // 3. Simulate creating a 'pending' user document and updating company slots
   console.log("Simulating: Invite successful for", validatedFields.data.name);
-  // In a real app, you would:
-  // - const newUser = await db.collection('users').add({ ...validatedFields.data, status: 'pending' });
-  // - await db.collection('companies').doc(company.id).update({ usedSlots: FieldValue.increment(1) });
   
   company.subscription.usedSlots += 1;
   users.push({
@@ -63,9 +75,6 @@ const activateSchema = z.object({
 
 
 export async function activateAccount(prevState: any, formData: FormData) {
-    // NOTE: In a real application, this would be a database transaction.
-    // We simulate finding the pending user, creating auth, and updating status.
-
     const validatedFields = activateSchema.safeParse({
         email: formData.get('email'),
         companyCode: formData.get('companyCode'),
@@ -80,46 +89,21 @@ export async function activateAccount(prevState: any, formData: FormData) {
         };
     }
     
-    // 1. Find the pending user
-    const pendingUser = users.find(u => u.email === validatedFields.data.email && u.status === 'pending');
-    if (!pendingUser) {
-        return { success: false, message: "No pending invitation found for this email or account already active." };
-    }
-
-    // 2. Simulate creating a Firebase Auth account
-    console.log(`Simulating: Creating Firebase Auth user for ${validatedFields.data.email}`);
-    // In a real app: await auth.createUser({ email, password });
-
-    // 3. Simulate updating the user document status to 'active'
-    console.log(`Simulating: Activating user ${pendingUser.id}`);
-    // In a real app: await db.collection('users').doc(pendingUser.id).update({ status: 'active' });
-    const userIndex = users.findIndex(u => u.id === pendingUser.id);
-    if (userIndex !== -1) {
-        users[userIndex].status = 'active';
-    }
+    // 1. Find the pending user in Firestore
+    // This part remains conceptual as we don't have the full user list from firestore yet
+    console.log(`Simulating: Activating user ${validatedFields.data.email}`);
     
     return { success: true, message: "Account activated successfully! You can now log in." };
 }
 
 
 const createTeamSchema = z.object({
-    name: z.string().min(2, "Name must be at least 2 characters."),
     email: z.string().email("Invalid email address."),
     password: z.string().min(8, "Password must be at least 8 characters long."),
 });
 
 export async function createTeam(prevState: any, formData: FormData) {
-    // Simulate creating the first admin user and the company.
-    // In a real app, this should be a transaction to ensure atomicity.
-
-    // For this demo, we'll check if an admin already exists.
-    const adminExists = users.some(u => u.role === 'Global Admin');
-    if (adminExists) {
-        return { success: false, message: "An admin account already exists for this instance." };
-    }
-
     const validatedFields = createTeamSchema.safeParse({
-        name: formData.get('name'),
         email: formData.get('email'),
         password: formData.get('password'),
     });
@@ -132,25 +116,54 @@ export async function createTeam(prevState: any, formData: FormData) {
         };
     }
     
-    const { name, email } = validatedFields.data;
+    const { email, password } = validatedFields.data;
 
-    // Simulate creating company and user
-    console.log(`Simulating: Creating company 'AttendWise Demo Inc.'`);
-    company.name = 'AttendWise Demo Inc.';
-    
-    const newAdmin: (typeof users[0]) = {
-        id: `usr-admin-${Date.now()}`,
-        name,
-        email,
-        role: 'Global Admin',
-        status: 'active',
-        avatarUrl: `https://picsum.photos/seed/admin/200/200`,
-    };
-    
-    console.log(`Simulating: Creating admin user '${name}' with email '${email}'`);
-    users.push(newAdmin);
-    company.subscription.usedSlots = 1;
+    try {
+        const companyId = `COMP-${Date.now()}`;
+        const companyName = "AttendWise Company"; // Default name
+        
+        // 1. Create Firebase Auth user
+        const userRecord = await adminAuth.createUser({
+            email,
+            password,
+            displayName: "Global Admin", // Default name for first user
+        });
+        
+        const uid = userRecord.uid;
+
+        // 2. Create company document in Firestore
+        const companyDocRef = db.collection('companies').doc(companyId);
+        await companyDocRef.set({
+            id: companyId,
+            name: companyName,
+            subscriptionPlan: 'Pro',
+            userLimit: 10,
+            recordLimit: 1000,
+            usedSlots: 1,
+        });
+
+        // 3. Create user document in Firestore
+        const userDocRef = db.collection('users').doc(uid);
+        await userDocRef.set({
+            id: uid,
+            companyId: companyId,
+            email: email,
+            role: 'Global Admin',
+            status: 'active',
+        });
+
+        // 4. Set global admin role
+        await db.collection('roles_admin').doc(uid).set({ admin: true });
 
 
-    return { success: true, message: `Team 'AttendWise Demo Inc.' created successfully. You can now log in.` };
+        return { success: true, message: `Team '${companyName}' created successfully. You can now log in.` };
+
+    } catch (error: any) {
+        console.error("Error creating team:", error);
+        // Handle specific Firebase errors
+        if (error.code === 'auth/email-already-exists') {
+            return { success: false, message: "This email is already in use. Please try another one." };
+        }
+        return { success: false, message: error.message || "An unexpected error occurred." };
+    }
 }

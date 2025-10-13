@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useActionState } from "react";
+import { useEffect } from "react";
+import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,7 +28,6 @@ const memberSchema = z.object({
 });
 
 const adminSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters."),
   email: z.string().email("Please enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters long."),
 });
@@ -56,7 +56,7 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
     resolver: zodResolver(isPendingUserFlow ? memberSchema : adminSchema),
     defaultValues: isPendingUserFlow
       ? { email: "", companyCode: "", password: "" }
-      : { name: "", email: "", password: "" },
+      : { email: "", password: "" },
   });
 
   useEffect(() => {
@@ -76,23 +76,6 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
   return (
     <Form {...form}>
       <form action={formAction} className="space-y-4">
-        {!isPendingUserFlow && (
-          <>
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tu Nombre</FormLabel>
-                  <FormControl>
-                    <Input placeholder="John Doe" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </>
-        )}
         <FormField
           control={form.control}
           name="email"
