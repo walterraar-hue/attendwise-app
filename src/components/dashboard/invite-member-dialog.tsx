@@ -43,7 +43,7 @@ const inviteFormSchema = z.object({
 });
 
 
-export function InviteMemberDialog({ company }: { company: { roleLimits: Record<string, number>, usedSlots: number } }) {
+export function InviteMemberDialog({ company }: { company: { roleLimits?: Record<string, number>, usedSlots: number } }) {
   const [open, setOpen] = useState(false);
   
   const form = useForm<z.infer<typeof inviteFormSchema>>({
@@ -51,7 +51,9 @@ export function InviteMemberDialog({ company }: { company: { roleLimits: Record<
     defaultValues: { name: "", email: "", role: "Employee" },
   });
 
-  const memberLimit = company.roleLimits['Member'] === -1 ? Infinity : company.roleLimits['Member'];
+  // Safely access roleLimits and the specific role limit.
+  const employeeLimit = company.roleLimits?.['Employee'];
+  const memberLimit = employeeLimit === -1 ? Infinity : (employeeLimit ?? 0);
   const userLimitReached = company.usedSlots >= memberLimit;
 
   const onSubmit = (values: z.infer<typeof inviteFormSchema>) => {
