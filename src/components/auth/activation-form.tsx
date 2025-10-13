@@ -11,8 +11,8 @@ import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction } from "firebase/firestore";
-import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
+import { FirestorePermissionError } from "@/firebase/errors";
 
 
 import { Button } from "@/components/ui/button";
@@ -168,24 +168,25 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
+        // Step 1: Find the pending user document *before* the transaction.
+        const pendingUserQuery = query(
+            collection(firestore, "users"),
+            where("email", "==", values.email),
+            where("companyId", "==", values.companyCode),
+            where("status", "==", "pending"),
+            limit(1)
+        );
+        const pendingUserSnapshot = await getDocs(pendingUserQuery);
+
+        if (pendingUserSnapshot.empty) {
+            throw new Error("No se encontró una invitación pendiente para este correo electrónico y código de empresa.");
+        }
+
+        const pendingUserDoc = pendingUserSnapshot.docs[0];
+        const pendingUserRef = pendingUserDoc.ref;
+        
+        // Step 2: Run the transaction to perform atomic updates.
         await runTransaction(firestore, async (transaction) => {
-            const pendingUserQuery = query(
-                collection(firestore, "users"),
-                where("email", "==", values.email),
-                where("companyId", "==", values.companyCode),
-                where("status", "==", "pending"),
-                limit(1)
-            );
-            
-            const pendingUserSnapshot = await getDocs(pendingUserQuery);
-
-            if (pendingUserSnapshot.empty) {
-                throw new Error("No se encontró una invitación pendiente para este correo electrónico y código de empresa.");
-            }
-
-            const pendingUserDoc = pendingUserSnapshot.docs[0];
-            const pendingUserRef = pendingUserDoc.ref;
-            
             const companyRef = doc(firestore, "companies", values.companyCode);
             const companySnap = await transaction.get(companyRef);
 
