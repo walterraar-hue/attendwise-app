@@ -16,7 +16,7 @@ import { useAuth, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword, User } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, writeBatch, doc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, increment } from 'firebase/firestore';
 
 
 const loginSchema = z.object({
@@ -43,21 +43,22 @@ const activatePendingUser = async (user: User, firestore: any): Promise<boolean>
     const pendingUserDoc = querySnapshot.docs[0];
     const companyId = pendingUserDoc.data().companyId;
     
-    const batch = writeBatch(firestore);
+    // --- Start of the fix: Replace batch with sequential writes ---
 
-    // 1. Update the pending user document to 'active' and set its ID to the auth UID
-    batch.update(pendingUserDoc.ref, { 
+    // 1. Update the user document first
+    await updateDoc(pendingUserDoc.ref, { 
         status: 'active',
         id: user.uid 
     });
 
-    // 2. Update the company's used slots
+    // 2. Then, update the company's used slots
     const companyRef = doc(firestore, 'companies', companyId);
-    batch.update(companyRef, {
+    await updateDoc(companyRef, {
         usedSlots: increment(1)
     });
     
-    await batch.commit();
+    // --- End of the fix ---
+    
     return true;
 };
 
