@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction, increment, updateDoc } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -41,7 +41,7 @@ const adminSchema = z.object({
 });
 
 function SubmitButton({ mode, isLoading }: { mode: "admin" | "member", isLoading: boolean }) {
-  const text = mode === "admin" ? "Crear Equipo" : "Activar Cuenta";
+  const text = mode === "admin" ? "Crear Equipo" : "Crear Cuenta";
   return (
     <Button type="submit" className="w-full" disabled={isLoading}>
       {isLoading ? <Loader2 className="animate-spin" /> : text}
@@ -164,89 +164,34 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
-
     try {
-        // Step 1: Find the pending user document BEFORE creating the auth user
-        const pendingUserQuery = query(
-            collection(firestore, "users"),
-            where("email", "==", values.email),
-            where("companyId", "==", values.companyCode),
-            where("status", "==", "pending"),
-            limit(1)
-        );
-        const pendingUserSnapshot = await getDocs(pendingUserQuery);
+      // Step 1: Just create the user in Firebase Auth.
+      await createUserWithEmailAndPassword(auth, values.email, values.password);
 
-        if (pendingUserSnapshot.empty) {
-            throw new Error("No se encontró una invitación pendiente para este correo electrónico y código de empresa.");
-        }
-        
-        const pendingUserDoc = pendingUserSnapshot.docs[0];
-        const pendingUserRef = pendingUserDoc.ref;
-        const companyRef = doc(firestore, 'companies', values.companyCode);
-
-        // Step 2: Create the user in Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
-
-        // Step 3: Now that user is created and auto-logged in, perform the Firestore updates.
-        // We use a batch write to ensure atomicity.
-
-        const batch = writeBatch(firestore);
-
-        // Update the original pending user document.
-        // It's now the official user document. We just need to change its status and name.
-        batch.update(pendingUserRef, {
-            status: 'active',
-            name: values.name,
-            id: user.uid, // IMPORTANT: We are now associating the new Auth UID with this doc.
-        });
-        
-        // Update the company's used slots
-        batch.update(companyRef, { 
-            usedSlots: increment(1) 
-        });
-        
-        // Commit all operations atomically
-        await batch.commit();
-
-        toast({ title: "¡Éxito!", description: "Cuenta activada. Ahora puedes iniciar sesión." });
-        router.push('/login');
+      // Step 2: Inform the user and redirect to login.
+      // The activation logic will now happen AFTER they log in.
+      toast({
+        title: "¡Cuenta Creada!",
+        description: "Tu cuenta ha sido creada. Por favor, inicia sesión para activar tu membresía.",
+      });
+      router.push("/login");
 
     } catch (error: any) {
-        // Clean up created auth user if firestore operations fail
-        if (auth.currentUser && (await auth.currentUser.getIdTokenResult()).authTime < Date.now() - 5000) {
-            try {
-                await auth.currentUser.delete();
-            } catch (deleteError) {
-                console.error("Failed to clean up newly created auth user:", deleteError);
-            }
-        }
-        if (error.code === 'auth/email-already-in-use') {
-            toast({
-              variant: "destructive",
-              title: "Correo electrónico en uso",
-              description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
-            });
-        } else if (error.code && error.code.includes('permission-denied')) {
-          const permissionError = new FirestorePermissionError({
-                path: `BATCH WRITE to users and companies`,
-                operation: 'update', 
-                requestResourceData: { 
-                    "Note": "This was a batch write to activate a user.",
-                    "/users/{pendingUserId}": { status: "active", name: values.name, id: "{newly-created-uid}" },
-                    "/companies/{companyId}": { usedSlots: "increment(1)" }
-                }
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        } else {
-            toast({
-                title: "Error de Activación",
-                description: error.message || "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.",
-                variant: "destructive",
-            });
-        }
+      if (error.code === 'auth/email-already-in-use') {
+        toast({
+          variant: "destructive",
+          title: "Correo electrónico en uso",
+          description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
+        });
+      } else {
+        toast({
+          title: "Error de Creación de Cuenta",
+          description: error.message || "No se pudo crear la cuenta. Verifica tus datos e inténtalo de nuevo.",
+          variant: "destructive",
+        });
+      }
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -316,3 +261,4 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
+

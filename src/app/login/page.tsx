@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -11,19 +12,59 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
+import { signInWithEmailAndPassword, User } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { collection, query, where, getDocs, writeBatch, doc, increment } from 'firebase/firestore';
+
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1, "Password is required"),
 });
 
+// This function will handle the activation logic after a successful login.
+const activatePendingUser = async (user: User, firestore: any): Promise<boolean> => {
+    // Query for a pending user document with the matching email
+    const pendingUserQuery = query(
+        collection(firestore, "users"),
+        where("email", "==", user.email),
+        where("status", "==", "pending")
+    );
+
+    const querySnapshot = await getDocs(pendingUserQuery);
+
+    if (querySnapshot.empty) {
+        // Not a pending user, or already activated. Nothing to do.
+        return false; 
+    }
+
+    const pendingUserDoc = querySnapshot.docs[0];
+    const companyId = pendingUserDoc.data().companyId;
+    
+    const batch = writeBatch(firestore);
+
+    // 1. Update the pending user document to 'active' and set its ID to the auth UID
+    batch.update(pendingUserDoc.ref, { 
+        status: 'active',
+        id: user.uid 
+    });
+
+    // 2. Update the company's used slots
+    const companyRef = doc(firestore, 'companies', companyId);
+    batch.update(companyRef, {
+        usedSlots: increment(1)
+    });
+    
+    await batch.commit();
+    return true;
+};
+
 
 export default function LoginPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -37,17 +78,31 @@ export default function LoginPage() {
 
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
-      toast({
-        title: "Login Successful",
-        description: "Redirecting to dashboard...",
-      });
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+      
+      // After successful login, check if the user was pending and activate them.
+      const wasActivated = await activatePendingUser(user, firestore);
+
+      if (wasActivated) {
+        toast({
+          title: "¡Cuenta Activada!",
+          description: "Tu cuenta ha sido activada correctamente. Bienvenido.",
+        });
+      } else {
+        toast({
+          title: "Inicio de Sesión Exitoso",
+          description: "Bienvenido de nuevo.",
+        });
+      }
+
       router.push('/dashboard');
+
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Login Failed",
-        description: error.message || "An unexpected error occurred.",
+        title: "Fallo en el Inicio de Sesión",
+        description: error.message || "Un error inesperado ocurrió.",
       });
     }
   };
@@ -99,7 +154,7 @@ export default function LoginPage() {
                   )}
                 />
                 <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? 'Logging in...' : 'Login'}
+                  {form.formState.isSubmitting ? 'Iniciando Sesión...' : 'Iniciar Sesión'}
                 </Button>
               </form>
             </Form>
