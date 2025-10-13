@@ -76,7 +76,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         id: companyId,
         name: `${values.name}'s Company`,
         subscriptionPlan: plan,
-        userLimit: plan === 'basic' ? 50 : plan === 'pro' ? 80 : Infinity,
+        userLimit: plan === 'basic' ? 50 : plan === 'pro' ? 80 : -1,
         recordLimit: 1000, // Placeholder
         usedSlots: 1,
         createdAt: serverTimestamp()
