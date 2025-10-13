@@ -162,15 +162,11 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     }
   };
 
- const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
+  const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
 
     try {
-        // Step 1: Create the user in Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
-
-        // Step 2: Find the pending user document using their email
+        // Step 1: Find the pending user document BEFORE creating the auth user
         const pendingUserQuery = query(
             collection(firestore, "users"),
             where("email", "==", values.email),
@@ -185,24 +181,25 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         }
         
         const pendingUserDoc = pendingUserSnapshot.docs[0];
-        // This is a new document reference with the user's actual UID
-        const newUserDocRef = doc(firestore, 'users', user.uid);
+        const pendingUserRef = pendingUserDoc.ref;
         const companyRef = doc(firestore, 'companies', values.companyCode);
 
-        // Step 3: Use a batch to atomically delete the pending doc and create the new one
+        // Step 2: Create the user in Firebase Auth
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
+
+        // Step 3: Now that user is created and auto-logged in, perform the Firestore updates.
+        // We use a batch write to ensure atomicity.
+
         const batch = writeBatch(firestore);
 
-        // Create the new user document with the correct UID
-        batch.set(newUserDocRef, {
-            ...pendingUserDoc.data(), // copy role, companyId etc. from invitation
+        // Update the original pending user document.
+        // It's now the official user document. We just need to change its status and name.
+        batch.update(pendingUserRef, {
             status: 'active',
             name: values.name,
-            id: user.uid, // explicitly set the id
-            email: values.email, // ensure email is set
+            id: user.uid, // IMPORTANT: We are now associating the new Auth UID with this doc.
         });
-
-        // Delete the original pending document
-        batch.delete(pendingUserDoc.ref);
         
         // Update the company's used slots
         batch.update(companyRef, { 
@@ -217,7 +214,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
     } catch (error: any) {
         // Clean up created auth user if firestore operations fail
-        if (auth.currentUser) {
+        if (auth.currentUser && (await auth.currentUser.getIdTokenResult()).authTime < Date.now() - 5000) {
             try {
                 await auth.currentUser.delete();
             } catch (deleteError) {
@@ -319,4 +316,3 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
-
