@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "@/hooks/use-toast";
-import { Company } from "@/lib/types";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, UserPlus } from "lucide-react";
+import type { Company } from "@/lib/types";
 
 const inviteFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -43,7 +43,7 @@ const inviteFormSchema = z.object({
 });
 
 
-export function InviteMemberDialog({ company }: { company: Company }) {
+export function InviteMemberDialog({ company }: { company: { roleLimits: Record<string, number>, usedSlots: number } }) {
   const [open, setOpen] = useState(false);
   
   const form = useForm<z.infer<typeof inviteFormSchema>>({
@@ -51,7 +51,8 @@ export function InviteMemberDialog({ company }: { company: Company }) {
     defaultValues: { name: "", email: "", role: "Employee" },
   });
 
-  const userLimitReached = company.subscription.usedSlots >= company.subscription.userLimit;
+  const memberLimit = company.roleLimits['Member'] === -1 ? Infinity : company.roleLimits['Member'];
+  const userLimitReached = company.usedSlots >= memberLimit;
 
   const onSubmit = (values: z.infer<typeof inviteFormSchema>) => {
     // TODO: Implement invitation logic here using Firebase
@@ -67,16 +68,16 @@ export function InviteMemberDialog({ company }: { company: Company }) {
       <DialogTrigger asChild>
         <Button>
           <UserPlus className="mr-2 h-4 w-4" />
-          Invite Member
+          Invitar Miembro
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Invite a new member</DialogTitle>
+          <DialogTitle>Invitar a un nuevo miembro</DialogTitle>
           <DialogDescription>
-            Enter the details below to send an invitation. They will be prompted to set up their account.
+            Introduce los detalles a continuación para enviar una invitación. Se les pedirá que configuren su cuenta.
             <p className="text-sm font-medium mt-2">
-              Usage: {company.subscription.usedSlots} / {company.subscription.userLimit} users
+              Uso: {company.usedSlots} / {memberLimit === Infinity ? 'Ilimitados' : memberLimit} miembros
             </p>
           </DialogDescription>
         </DialogHeader>
@@ -87,7 +88,7 @@ export function InviteMemberDialog({ company }: { company: Company }) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Full Name</FormLabel>
+                  <FormLabel>Nombre Completo</FormLabel>
                   <FormControl>
                     <Input placeholder="John Doe" {...field} />
                   </FormControl>
@@ -113,16 +114,16 @@ export function InviteMemberDialog({ company }: { company: Company }) {
               name="role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Role</FormLabel>
+                  <FormLabel>Rol</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
+                        <SelectValue placeholder="Selecciona un rol" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="Manager">Manager</SelectItem>
-                      <SelectItem value="Employee">Employee</SelectItem>
+                      <SelectItem value="Employee">Miembro</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -130,14 +131,14 @@ export function InviteMemberDialog({ company }: { company: Company }) {
               )}
             />
              {userLimitReached && (
-                <p className="text-sm font-medium text-destructive">You have reached your user limit. Please upgrade to invite more members.</p>
+                <p className="text-sm font-medium text-destructive">Has alcanzado tu límite de usuarios. Por favor, actualiza tu plan para invitar a más miembros.</p>
              )}
             <DialogFooter>
                 <DialogClose asChild>
-                    <Button type="button" variant="secondary">Cancel</Button>
+                    <Button type="button" variant="secondary">Cancelar</Button>
                 </DialogClose>
-                <Button type="submit" disabled={userLimitReached || form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? <Loader2 className="animate-spin" /> : "Send Invitation"}
+                <Button type="submit" disabled={true || userLimitReached || form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? <Loader2 className="animate-spin" /> : "Enviar Invitación"}
                 </Button>
             </DialogFooter>
           </form>

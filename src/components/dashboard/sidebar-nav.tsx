@@ -135,18 +135,6 @@ export function SidebarNav({ companyName }: { companyName: string }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive('/dashboard/members')}
-              tooltip="Members"
-            >
-              <Link href={`/dashboard/members`}>
-                <Users />
-                <span>Members</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
             <SidebarMenuButton 
               asChild 
               isActive={isActive('/dashboard/settings')}

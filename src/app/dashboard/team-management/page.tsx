@@ -5,14 +5,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Users, Star, User, Crown, UserCog } from "lucide-react";
+import { Copy, Users, Star, User as UserIcon, Crown, UserCog } from "lucide-react";
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { collection, query, where, doc } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { User as UserType } from "@/lib/types";
+import type { User } from "@/lib/types";
+import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog";
+import { MembersTable } from "@/components/dashboard/members-table";
+import { Separator } from "@/components/ui/separator";
 
 // A server component to display the invitation code.
 // In a real app, this might be a client component to handle the copy action.
@@ -56,7 +59,7 @@ function InvitationCode({ companyId }: { companyId: string }) {
   );
 }
 
-function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) {
+function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
     const roleLimits = company?.roleLimits || {};
 
@@ -76,8 +79,8 @@ function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) 
         return counts;
     }, [users]);
     
-    const allRoles: { name: string, icon: React.ReactNode }[] = [
-        { name: 'Global Admin', icon: <User className="size-5 text-red-500" /> },
+    const allRoles: { name: string; icon: React.ReactNode }[] = [
+        { name: 'Global Admin', icon: <UserIcon className="size-5 text-red-500" /> },
         { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" /> },
         { name: 'Operations Manager', icon: <Star className="size-5 text-blue-500" /> },
         { name: 'Manager', icon: <UserCog className="size-5 text-indigo-500" /> },
@@ -90,7 +93,7 @@ function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) 
             limit: roleLimits[role.name] ?? 0,
             used: roleCounts[role.name] ?? 0,
         }))
-        .filter(role => role.limit !== 0);
+        .filter(role => role.limit !== 0 && role.limit !== undefined);
 
 
     return (
@@ -159,8 +162,9 @@ export default function TeamManagementPage() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <Header title="Gestión de Equipo" />
+        {companyData && <InviteMemberDialog company={companyData as any} />}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start mb-8">
         {isLoading ? (
             <p>Cargando...</p>
         ) : (
@@ -170,6 +174,18 @@ export default function TeamManagementPage() {
             </>
         )}
       </div>
+      
+      <Separator />
+
+      <div className="space-y-4 mt-8">
+        <Header title="Miembros del Equipo" />
+        {isLoading ? (
+            <p>Cargando miembros...</p>
+        ) : (
+            <MembersTable data={companyUsers || []} />
+        )}
+      </div>
+
     </div>
   );
 }
