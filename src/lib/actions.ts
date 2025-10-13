@@ -100,3 +100,59 @@ export async function activateAccount(prevState: any, formData: FormData) {
     
     return { success: true, message: "Account activated successfully! You can now log in." };
 }
+
+
+const createTeamSchema = z.object({
+    name: z.string().min(2, "Name must be at least 2 characters."),
+    email: z.string().email("Invalid email address."),
+    password: z.string().min(8, "Password must be at least 8 characters long."),
+    companyName: z.string().min(3, "Company name must be at least 3 characters."),
+});
+
+export async function createTeam(prevState: any, formData: FormData) {
+    // Simulate creating the first admin user and the company.
+    // In a real app, this should be a transaction to ensure atomicity.
+
+    // For this demo, we'll check if an admin already exists.
+    const adminExists = users.some(u => u.role === 'Global Admin');
+    if (adminExists) {
+        return { success: false, message: "An admin account already exists for this instance." };
+    }
+
+    const validatedFields = createTeamSchema.safeParse({
+        name: formData.get('name'),
+        email: formData.get('email'),
+        password: formData.get('password'),
+        companyName: formData.get('companyName'),
+    });
+
+    if (!validatedFields.success) {
+        return {
+          success: false,
+          message: "Invalid form data.",
+          errors: validatedFields.error.flatten().fieldErrors,
+        };
+    }
+    
+    const { name, email, companyName } = validatedFields.data;
+
+    // Simulate creating company and user
+    console.log(`Simulating: Creating company '${companyName}'`);
+    company.name = companyName;
+    
+    const newAdmin: (typeof users[0]) = {
+        id: `usr-admin-${Date.now()}`,
+        name,
+        email,
+        role: 'Global Admin',
+        status: 'active',
+        avatarUrl: `https://picsum.photos/seed/admin/200/200`,
+    };
+    
+    console.log(`Simulating: Creating admin user '${name}' with email '${email}'`);
+    users.push(newAdmin);
+    company.subscription.usedSlots = 1;
+
+
+    return { success: true, message: `Team '${companyName}' created successfully. You can now log in.` };
+}

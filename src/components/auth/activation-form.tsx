@@ -5,8 +5,8 @@ import { useFormStatus } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { toast } from "@/hooks/use-toast";
-import { activateAccount } from "@/lib/actions";
+import { useToast } from "@/hooks/use-toast";
+import { activateAccount, createTeam } from "@/lib/actions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,52 +20,92 @@ import {
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 
-const activateFormSchema = z.object({
+const memberSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
   companyCode: z.string().min(1, "Company code is required."),
   password: z.string().min(8, "Password must be at least 8 characters long."),
 });
 
-function SubmitButton() {
+const adminSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters."),
+  email: z.string().email("Please enter a valid email address."),
+  password: z.string().min(8, "Password must be at least 8 characters long."),
+  companyName: z.string().min(3, "Company name must be at least 3 characters."),
+});
+
+function SubmitButton({ mode }: { mode: "admin" | "member" }) {
   const { pending } = useFormStatus();
+  const text = mode === "admin" ? "Crear Equipo" : "Activar Cuenta";
   return (
     <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? <Loader2 className="animate-spin" /> : "Activate Account"}
+      {pending ? <Loader2 className="animate-spin" /> : text}
     </Button>
   );
 }
 
-export function ActivationForm() {
-  const [state, formAction] = useActionState(activateAccount, {
+export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
+  const isPendingUserFlow = mode === 'member';
+  const action = isPendingUserFlow ? activateAccount : createTeam;
+
+  const [state, formAction] = useActionState(action, {
     success: false,
     message: "",
   });
 
-  const form = useForm<z.infer<typeof activateFormSchema>>({
-    resolver: zodResolver(activateFormSchema),
-    defaultValues: {
-      email: "",
-      companyCode: "",
-      password: "",
-    },
+  const form = useForm({
+    resolver: zodResolver(isPendingUserFlow ? memberSchema : adminSchema),
+    defaultValues: isPendingUserFlow
+      ? { email: "", companyCode: "", password: "" }
+      : { name: "", email: "", password: "", companyName: "" },
   });
 
   useEffect(() => {
     if (state.message) {
       toast({
-        title: state.success ? "Success!" : "Error",
+        title: state.success ? "Éxito!" : "Error",
         description: state.message,
         variant: state.success ? "default" : "destructive",
       });
     }
     if (state.success) {
       form.reset();
+      // TODO: Redirect to login or dashboard
     }
   }, [state, form]);
 
   return (
     <Form {...form}>
       <form action={formAction} className="space-y-4">
+        {!isPendingUserFlow && (
+          <>
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tu Nombre</FormLabel>
+                  <FormControl>
+                    <Input placeholder="John Doe" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="companyName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre de la Empresa</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Mi Empresa Inc." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        )}
         <FormField
           control={form.control}
           name="email"
@@ -73,31 +113,33 @@ export function ActivationForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input placeholder="you@company.com" {...field} />
+                <Input placeholder="tu@email.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="companyCode"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Company Code</FormLabel>
-              <FormControl>
-                <Input placeholder="Your company code" {...field} className="font-code"/>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {isPendingUserFlow && (
+          <FormField
+            control={form.control}
+            name="companyCode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Código de la Empresa</FormLabel>
+                <FormControl>
+                  <Input placeholder="El código de tu empresa" {...field} className="font-code"/>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="password"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Set Password</FormLabel>
+              <FormLabel>Establecer Contraseña</FormLabel>
               <FormControl>
                 <Input type="password" placeholder="••••••••" {...field} />
               </FormControl>
@@ -105,7 +147,7 @@ export function ActivationForm() {
             </FormItem>
           )}
         />
-        <SubmitButton />
+        <SubmitButton mode={mode} />
       </form>
     </Form>
   );
