@@ -106,7 +106,6 @@ const createTeamSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters."),
     email: z.string().email("Invalid email address."),
     password: z.string().min(8, "Password must be at least 8 characters long."),
-    companyName: z.string().min(3, "Company name must be at least 3 characters."),
 });
 
 export async function createTeam(prevState: any, formData: FormData) {
@@ -123,7 +122,6 @@ export async function createTeam(prevState: any, formData: FormData) {
         name: formData.get('name'),
         email: formData.get('email'),
         password: formData.get('password'),
-        companyName: formData.get('companyName'),
     });
 
     if (!validatedFields.success) {
@@ -134,11 +132,11 @@ export async function createTeam(prevState: any, formData: FormData) {
         };
     }
     
-    const { name, email, companyName } = validatedFields.data;
+    const { name, email } = validatedFields.data;
 
     // Simulate creating company and user
-    console.log(`Simulating: Creating company '${companyName}'`);
-    company.name = companyName;
+    console.log(`Simulating: Creating company 'AttendWise Demo Inc.'`);
+    company.name = 'AttendWise Demo Inc.';
     
     const newAdmin: (typeof users[0]) = {
         id: `usr-admin-${Date.now()}`,
@@ -154,5 +152,5 @@ export async function createTeam(prevState: any, formData: FormData) {
     company.subscription.usedSlots = 1;
 
 
-    return { success: true, message: `Team '${companyName}' created successfully. You can now log in.` };
+    return { success: true, message: `Team 'AttendWise Demo Inc.' created successfully. You can now log in.` };
 }

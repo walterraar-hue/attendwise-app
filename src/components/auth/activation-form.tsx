@@ -30,7 +30,6 @@ const adminSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   email: z.string().email("Please enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters long."),
-  companyName: z.string().min(3, "Company name must be at least 3 characters."),
 });
 
 function SubmitButton({ mode }: { mode: "admin" | "member" }) {
@@ -44,6 +43,7 @@ function SubmitButton({ mode }: { mode: "admin" | "member" }) {
 }
 
 export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
+  const { toast } = useToast()
   const isPendingUserFlow = mode === 'member';
   const action = isPendingUserFlow ? activateAccount : createTeam;
 
@@ -56,7 +56,7 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
     resolver: zodResolver(isPendingUserFlow ? memberSchema : adminSchema),
     defaultValues: isPendingUserFlow
       ? { email: "", companyCode: "", password: "" }
-      : { name: "", email: "", password: "", companyName: "" },
+      : { name: "", email: "", password: "" },
   });
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
       form.reset();
       // TODO: Redirect to login or dashboard
     }
-  }, [state, form]);
+  }, [state, form, toast]);
 
   return (
     <Form {...form}>
@@ -86,19 +86,6 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
                   <FormLabel>Tu Nombre</FormLabel>
                   <FormControl>
                     <Input placeholder="John Doe" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="companyName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre de la Empresa</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Mi Empresa Inc." {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
