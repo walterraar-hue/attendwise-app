@@ -76,13 +76,21 @@ function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) 
         return counts;
     }, [users]);
     
-    const roleDetails: { name: string, limit: number, used: number, icon: React.ReactNode }[] = [
-        { name: 'Global Admin', limit: roleLimits['Global Admin'], used: roleCounts['Global Admin'], icon: <User className="size-5 text-red-500" /> },
-        { name: 'CEO', limit: roleLimits['CEO'], used: roleCounts['CEO'], icon: <Crown className="size-5 text-yellow-500" /> },
-        { name: 'Operations Manager', limit: roleLimits['Operations Manager'], used: roleCounts['Operations Manager'], icon: <Star className="size-5 text-blue-500" /> },
-        { name: 'Manager', limit: roleLimits['Manager'], used: roleCounts['Manager'], icon: <UserCog className="size-5 text-indigo-500" /> },
-        { name: 'Employee', limit: roleLimits['Member'], used: roleCounts['Employee'], icon: <Users className="size-5 text-green-500" /> },
-    ].filter(role => role.limit !== 0 && role.limit !== undefined);
+    const allRoles: { name: string, icon: React.ReactNode }[] = [
+        { name: 'Global Admin', icon: <User className="size-5 text-red-500" /> },
+        { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" /> },
+        { name: 'Operations Manager', icon: <Star className="size-5 text-blue-500" /> },
+        { name: 'Manager', icon: <UserCog className="size-5 text-indigo-500" /> },
+        { name: 'Employee', icon: <Users className="size-5 text-green-500" /> },
+    ];
+
+    const roleDetails = allRoles
+        .map(role => ({
+            ...role,
+            limit: roleLimits[role.name] ?? 0,
+            used: roleCounts[role.name] ?? 0,
+        }))
+        .filter(role => role.limit !== 0);
 
 
     return (
