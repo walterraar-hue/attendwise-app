@@ -1,6 +1,7 @@
 
 
 
+
 'use client'
 
 import Header from "@/components/dashboard/header";
@@ -87,12 +88,15 @@ function PlanUsageCard({ company, users }: { company: any; users: User[] }) {
             .filter(role => role.limit > 0 || role.limit === -1); 
 
         const totalLimit = roles.reduce((acc, role) => {
+            if (role.name === 'Global Admin' || role.name === 'CEO' || role.name === 'Operations Manager') {
+                return acc;
+            }
             if (role.limit === -1) return Infinity;
             if (acc === Infinity) return Infinity;
             return acc + role.limit;
         }, 0);
 
-        const currentUsedSlots = users.length;
+        const currentUsedSlots = users.filter(u => u.role === 'Employee' || u.role === 'Manager').length;
         
         return { roleDetails: roles, totalMemberLimit: totalLimit, usedSlots: currentUsedSlots };
     }, [company, users]);
@@ -183,7 +187,7 @@ export default function TeamManagementPage() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <Header title="Gestión de Equipo" />
-        {companyData && <InviteMemberDialog company={companyData as any} users={companyUsers || []} />}
+        {companyData && companyUsers && <InviteMemberDialog company={companyData as any} users={companyUsers} />}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-8">
         {isLoading || !companyData || !companyUsers ? (
@@ -214,7 +218,7 @@ export default function TeamManagementPage() {
             </div>
         )}
          <div className="lg:col-span-1">
-            <InvitationCode companyId={companyId || ''} />
+            {isLoading || !companyId ? <Skeleton className="h-48 w-full" /> : <InvitationCode companyId={companyId} />}
          </div>
       </div>
       

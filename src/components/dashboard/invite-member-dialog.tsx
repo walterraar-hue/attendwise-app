@@ -38,16 +38,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, UserPlus } from "lucide-react";
-import { UserRole, User } from "@/lib/types";
+import type { User, UserRole } from "@/lib/types";
 
 const inviteFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   email: z.string().email("Please enter a valid email address."),
-  role: z.nativeEnum(
-    Object.fromEntries(
-      ['Manager', 'Employee', 'Operations Manager', 'CEO'].map(role => [role, role])
-    )
-  ) as z.ZodType<UserRole>,
+  role: z.string().min(1, "Role is required") as z.ZodType<UserRole>,
 });
 
 
@@ -176,7 +172,7 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
                     </FormControl>
                     <SelectContent>
                         {availableRoles.map(role => (
-                            <SelectItem key={role} value={role}>{role}</SelectItem>
+                            <SelectItem key={role} value={role}>{role === 'Employee' ? 'Miembro' : role}</SelectItem>
                         ))}
                     </SelectContent>
                   </Select>
