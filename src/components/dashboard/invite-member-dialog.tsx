@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState, useActionState } from "react";
-import { useFormStatus } from "react-dom";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "@/hooks/use-toast";
-import { inviteUser } from "@/lib/actions";
 import { Company } from "@/lib/types";
 
 import { Button } from "@/components/ui/button";
@@ -44,22 +42,10 @@ const inviteFormSchema = z.object({
   role: z.enum(["Manager", "Employee"]),
 });
 
-function SubmitButton({ disabled }: { disabled?: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={disabled || pending}>
-      {pending ? <Loader2 className="animate-spin" /> : "Send Invitation"}
-    </Button>
-  );
-}
 
 export function InviteMemberDialog({ company }: { company: Company }) {
   const [open, setOpen] = useState(false);
-  const [state, formAction] = useActionState(inviteUser, {
-    success: false,
-    message: "",
-  });
-
+  
   const form = useForm<z.infer<typeof inviteFormSchema>>({
     resolver: zodResolver(inviteFormSchema),
     defaultValues: { name: "", email: "", role: "Employee" },
@@ -67,19 +53,14 @@ export function InviteMemberDialog({ company }: { company: Company }) {
 
   const userLimitReached = company.subscription.usedSlots >= company.subscription.userLimit;
 
-  useEffect(() => {
-    if (state.message) {
-      toast({
-        title: state.success ? "Success!" : "Error",
-        description: state.message,
-        variant: state.success ? "default" : "destructive",
-      });
-    }
-    if (state.success) {
-      form.reset();
-      setOpen(false);
-    }
-  }, [state, form]);
+  const onSubmit = (values: z.infer<typeof inviteFormSchema>) => {
+    // TODO: Implement invitation logic here using Firebase
+    console.log(values);
+    toast({
+      title: "Función no implementada",
+      description: "La lógica para invitar a un usuario aún no está conectada.",
+    });
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -100,7 +81,7 @@ export function InviteMemberDialog({ company }: { company: Company }) {
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form action={formAction} className="space-y-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <FormField
               control={form.control}
               name="name"
@@ -155,7 +136,9 @@ export function InviteMemberDialog({ company }: { company: Company }) {
                 <DialogClose asChild>
                     <Button type="button" variant="secondary">Cancel</Button>
                 </DialogClose>
-                <SubmitButton disabled={userLimitReached} />
+                <Button type="submit" disabled={userLimitReached || form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? <Loader2 className="animate-spin" /> : "Send Invitation"}
+                </Button>
             </DialogFooter>
           </form>
         </Form>
