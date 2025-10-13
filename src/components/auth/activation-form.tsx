@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction } from "firebase/firestore";
+import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction, increment } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -168,7 +168,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
-        // Step 1: Find the pending user document *before* the transaction.
         const pendingUserQuery = query(
             collection(firestore, "users"),
             where("email", "==", values.email),
@@ -185,26 +184,27 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         const pendingUserDoc = pendingUserSnapshot.docs[0];
         const pendingUserRef = pendingUserDoc.ref;
         
-        // Step 2: Run the transaction to perform atomic updates.
         await runTransaction(firestore, async (transaction) => {
             const companyRef = doc(firestore, "companies", values.companyCode);
+            
+            // This is a transactional read, MUST be inside the transaction
             const companySnap = await transaction.get(companyRef);
 
             if (!companySnap.exists()) {
                 throw new Error("La compañía asociada a esta invitación ya no existe.");
             }
             
-            const companyData = companySnap.data();
-
-            // KEY CHANGE: Update the existing document instead of creating a new one.
+            // KEY CHANGE 1: Update the existing document with the new UID
             transaction.update(pendingUserRef, {
                 status: 'active',
                 name: values.name,
-                id: user.uid, // This is the crucial part: stamp the new UID onto the document
+                id: user.uid,
             });
             
-            // Update company used slots
-            transaction.update(companyRef, { usedSlots: (companyData.usedSlots || 0) + 1 });
+            // KEY CHANGE 2: Use Firestore's atomic increment operation. This is the correct way.
+            transaction.update(companyRef, { 
+                usedSlots: increment(1) 
+            });
         });
 
         toast({ title: "¡Éxito!", description: "Cuenta activada. Ahora puedes iniciar sesión." });
