@@ -8,9 +8,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
-import { useAuth, useFirestore, FirestorePermissionError, errorEmitter } from "@/firebase";
+import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, updateDoc, limit } from "firebase/firestore";
+import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit } from "firebase/firestore";
+import { FirestorePermissionError } from "@/firebase/errors";
+import { errorEmitter } from "@/firebase/error-emitter";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -68,18 +70,15 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       setIsLoading(false);
       return;
     }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
       const companyId = doc(collection(firestore, 'companies')).id;
-      
+
       const roleLimits: Record<string, number> = {
-        'Global Admin': 0,
-        'CEO': 0,
-        'Operations Manager': 0,
-        'Manager': 0,
-        'Employee': 0,
+        'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Employee': 0,
       };
 
       if (plan === 'basic') {
@@ -93,8 +92,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           roleLimits['Global Admin'] = 1;
           roleLimits['CEO'] = 1;
           roleLimits['Operations Manager'] = 2;
-          roleLimits['Employee'] = -1; // Unlimited
-          roleLimits['Manager'] = 0; // No managers in premium
+          roleLimits['Employee'] = -1; 
+          roleLimits['Manager'] = 0;
       }
 
       const companyData = {
@@ -118,26 +117,19 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const adminRoleData = { admin: true };
 
       const batch = writeBatch(firestore);
-
       const companyDocRef = doc(firestore, 'companies', companyId);
       batch.set(companyDocRef, companyData);
-
       const userDocRef = doc(firestore, 'users', user.uid);
       batch.set(userDocRef, userData);
-
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
       batch.set(adminRoleRef, adminRoleData);
 
       await batch.commit();
 
-      toast({
-        title: "¡Éxito!",
-        description: `Equipo creado correctamente. Ahora puedes iniciar sesión.`,
-      });
+      toast({ title: "¡Éxito!", description: `Equipo creado correctamente. Ahora puedes iniciar sesión.`, });
       router.push('/login');
 
     } catch (error: any) {
-      
       if (error.code === 'auth/email-already-in-use') {
         toast({
           variant: "destructive",
@@ -146,26 +138,13 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         });
       } else if (error.code && error.code.includes('permission-denied')) {
          const permissionError = new FirestorePermissionError({
-              path: `BATCH WRITE to companies, users, and roles_admin`,
+              path: `BATCH WRITE`,
               operation: 'write', 
-              requestResourceData: {
-                company: {
-                    id: `COMP-TIMESTAMP`,
-                    name: `${values.name}'s Company`,
-                    subscriptionPlan: plan,
-                    roleLimits: '...' // Simplified for error
-                },
-                user: {
-                    id: 'NEW_USER_UID',
-                    companyId: `COMP-TIMESTAMP`,
-                    email: values.email,
-                    name: values.name,
-                    role: 'Global Admin',
-                    status: 'active',
-                },
-                adminRole: {
-                    admin: true,
-                },
+              requestResourceData: { 
+                  "Note": "This was a batch write. The error could be on any of the following documents.",
+                  "/companies/{newCompanyId}": { name: `${values.name}'s Company`, plan: plan },
+                  "/users/{newUserId}": { email: values.email, role: "Global Admin" },
+                  "/roles_admin/{newUserId}": { admin: true }
               }
         });
         errorEmitter.emit('permission-error', permissionError);
@@ -176,14 +155,14 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           variant: "destructive",
         });
       }
-      setIsLoading(false);
-    } 
+    } finally {
+        setIsLoading(false);
+    }
   };
 
  const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
     try {
-      // 1. Find the pending invitation
       const pendingUserQuery = query(
         collection(firestore, "users"),
         where("email", "==", values.email),
@@ -200,31 +179,21 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       }
 
       const pendingUserDoc = pendingUserSnapshot.docs[0];
-      const pendingUserData = pendingUserDoc.data();
-
-      // 2. Create the Firebase Auth user
+      
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // 3. Atomically update the user document and company's used slots
       const companyRef = doc(firestore, "companies", values.companyCode);
       const companySnap = await getDoc(companyRef);
       if (!companySnap.exists()) {
-          // This should be rare if the invitation existed, but good to check
           throw new Error("La compañía asociada a esta invitación ya no existe.");
       }
       const companyData = companySnap.data();
 
       const batch = writeBatch(firestore);
-
-      // Update the user document from 'pending' to 'active'
       const userDocRef = doc(firestore, "users", pendingUserDoc.id);
-      batch.update(userDocRef, {
-        id: user.uid, // Set the final UID
-        status: 'active',
-      });
-      
-      // Increment the company's used slots
+
+      batch.update(userDocRef, { id: user.uid, status: 'active' });
       batch.update(companyRef, { usedSlots: (companyData.usedSlots || 0) + 1 });
 
       await batch.commit();
@@ -233,13 +202,23 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       router.push('/login');
 
     } catch (error: any) {
-      console.error("Error activating member account:", error);
-       if (error.code === 'auth/email-already-in-use') {
+      if (error.code === 'auth/email-already-in-use') {
         toast({
           variant: "destructive",
           title: "Correo electrónico en uso",
           description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
         });
+      } else if (error.code && error.code.includes('permission-denied')) {
+        const permissionError = new FirestorePermissionError({
+            path: `BATCH WRITE to users and companies`,
+            operation: 'update',
+            requestResourceData: { 
+                "Note": "This was a batch write to activate a user.",
+                "/users/{pendingUserId}": { status: 'active' },
+                "/companies/{companyId}": { usedSlots: 'increment' }
+            }
+        });
+        errorEmitter.emit('permission-error', permissionError);
       } else {
         toast({
             title: "Error",
@@ -247,7 +226,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             variant: "destructive",
         });
       }
-      setIsLoading(false);
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -318,5 +298,3 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
-
-    
