@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, addDoc, collection } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, addDoc, collection, increment, updateDoc, query, where, getDocs } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -80,21 +80,21 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const newCompanyRef = doc(collection(firestore, 'companies'));
 
       const roleLimits: Record<string, number> = {
-        'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Employee': 0,
+        'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Miembro': 0,
       };
 
       if (plan === 'basic') {
           roleLimits['Global Admin'] = 1;
-          roleLimits['Employee'] = 50;
+          roleLimits['Miembro'] = 50;
       } else if (plan === 'pro') {
           roleLimits['Global Admin'] = 1;
           roleLimits['Operations Manager'] = 1;
-          roleLimits['Employee'] = 80;
+          roleLimits['Miembro'] = 80;
       } else if (plan === 'premium') {
           roleLimits['Global Admin'] = 1;
           roleLimits['CEO'] = 1;
           roleLimits['Operations Manager'] = 2;
-          roleLimits['Employee'] = -1; 
+          roleLimits['Miembro'] = -1; 
           roleLimits['Manager'] = 0;
       }
 
@@ -165,7 +165,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     setIsLoading(true);
     try {
       // Step 1: Create the user in Firebase Auth.
-       await createUserWithEmailAndPassword(auth, values.email, values.password);
+      await createUserWithEmailAndPassword(auth, values.email, values.password);
 
       // Step 2: Create a 'pending' user document in Firestore.
       // This document will be claimed upon first login.
@@ -173,7 +173,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           companyId: values.companyCode,
           name: values.name,
           email: values.email,
-          role: "Employee", // Default role, can be changed by admin
+          role: "Miembro", // Default role, can be changed by admin
           status: "pending"
       });
 
@@ -190,6 +190,16 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           title: "Correo electrónico en uso",
           description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
         });
+      } else if (error.code && error.code.includes('permission-denied')) {
+           const permissionError = new FirestorePermissionError({
+                path: `addDoc to /users`,
+                operation: 'create', 
+                requestResourceData: { 
+                    "Note": "This was an attempt to create a pending user document after a successful Auth creation.",
+                    "/users/{newPendingUserId}": { name: values.name, email: values.email, role: "Miembro", status: "pending", companyId: values.companyCode },
+                }
+          });
+          errorEmitter.emit('permission-error', permissionError);
       } else {
         toast({
           title: "Error de Creación de Cuenta",

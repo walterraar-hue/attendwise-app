@@ -50,7 +50,7 @@ const ALL_ROLES_MAP = new Map<UserRole, string>([
     ['CEO', 'CEO'],
     ['Operations Manager', 'Admin de Operaciones'],
     ['Manager', 'Manager'],
-    ['Employee', 'Miembro'],
+    ['Miembro', 'Miembro'],
 ]);
 
 
@@ -61,7 +61,7 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
   
   const form = useForm<z.infer<typeof inviteFormSchema>>({
     resolver: zodResolver(inviteFormSchema),
-    defaultValues: { name: "", email: "", role: "Employee" },
+    defaultValues: { name: "", email: "", role: "Miembro" },
   });
 
   const availableRoles = useMemo(() => {

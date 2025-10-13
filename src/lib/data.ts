@@ -20,12 +20,12 @@ const avatarMap = PlaceHolderImages.reduce((acc, img) => {
 
 
 export const users: User[] = [
-  { id: 'usr-admin-01', name: 'Alex Johnson', email: 'alex.j@example.com', role: 'Global Admin', status: 'active', avatarUrl: avatarMap['avatar1'] },
-  { id: 'usr-manager-01', name: 'Samantha Carter', email: 'sam.c@example.com', role: 'Manager', status: 'active', avatarUrl: avatarMap['avatar2'], teamId: 'team-alpha' },
-  { id: 'usr-emp-01', name: 'Michael Chen', email: 'michael.c@example.com', role: 'Employee', status: 'active', avatarUrl: avatarMap['avatar3'], teamId: 'team-alpha' },
-  { id: 'usr-emp-02', name: 'Jessica Rodriguez', email: 'jessica.r@example.com', role: 'Employee', status: 'active', avatarUrl: avatarMap['avatar4'], teamId: 'team-alpha' },
-  { id: 'usr-emp-03', name: 'David Lee', email: 'david.l@example.com', role: 'Employee', status: 'pending', avatarUrl: avatarMap['avatar5'], teamId: 'team-bravo' },
-  { id: 'usr-manager-02', name: 'Daniel Jackson', email: 'daniel.j@example.com', role: 'Manager', status: 'active', avatarUrl: avatarMap['avatar6'], teamId: 'team-bravo' },
+  { id: 'usr-admin-01', name: 'Alex Johnson', email: 'alex.j@example.com', role: 'Global Admin', status: 'active', avatarUrl: avatarMap['avatar1'], companyId: 'ATTEND-WISE-DEMO' },
+  { id: 'usr-manager-01', name: 'Samantha Carter', email: 'sam.c@example.com', role: 'Manager', status: 'active', avatarUrl: avatarMap['avatar2'], teamId: 'team-alpha', companyId: 'ATTEND-WISE-DEMO' },
+  { id: 'usr-emp-01', name: 'Michael Chen', email: 'michael.c@example.com', role: 'Miembro', status: 'active', avatarUrl: avatarMap['avatar3'], teamId: 'team-alpha', companyId: 'ATTEND-WISE-DEMO' },
+  { id: 'usr-emp-02', name: 'Jessica Rodriguez', email: 'jessica.r@example.com', role: 'Miembro', status: 'active', avatarUrl: avatarMap['avatar4'], teamId: 'team-alpha', companyId: 'ATTEND-WISE-DEMO' },
+  { id: 'usr-emp-03', name: 'David Lee', email: 'david.l@example.com', role: 'Miembro', status: 'pending', avatarUrl: avatarMap['avatar5'], teamId: 'team-bravo', companyId: 'ATTEND-WISE-DEMO' },
+  { id: 'usr-manager-02', name: 'Daniel Jackson', email: 'daniel.j@example.com', role: 'Manager', status: 'active', avatarUrl: avatarMap['avatar6'], teamId: 'team-bravo', companyId: 'ATTEND-WISE-DEMO' },
 ];
 
 export const attendance: AttendanceRecord[] = [

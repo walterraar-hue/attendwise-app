@@ -1,6 +1,7 @@
 
 
-export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager' | 'Employee';
+
+export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager' | 'Miembro';
 
 export type UserStatus = 'active' | 'pending' | 'inactive';
 
@@ -25,7 +26,7 @@ export interface Company {
       'Operations Manager': number;
       'CEO': number;
       'Manager': number;
-      'Employee': number; // Employee is the internal name for "Miembro"
+      'Miembro': number;
   }
   policies: string;
 }
