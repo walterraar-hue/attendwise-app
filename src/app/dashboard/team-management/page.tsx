@@ -76,7 +76,7 @@ function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) 
         { name: 'CEO', limit: roleLimits?.['CEO'], used: roleCounts['CEO'] || 0, icon: <Crown className="size-5 text-yellow-500" /> },
         { name: 'Operations Manager', limit: roleLimits?.['Operations Manager'], used: roleCounts['Operations Manager'] || 0, icon: <Star className="size-5 text-blue-500" /> },
         { name: 'Member', limit: roleLimits?.['Member'], used: roleCounts['Member'] || 0, icon: <Users className="size-5 text-green-500" /> },
-    ].filter(role => role.limit > 0 || (role.limit ===-1 && planName === 'premium') || role.used > 0);
+    ].filter(role => role.limit !== 0);
 
 
     return (
