@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import Header from "@/components/dashboard/header";
@@ -8,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Copy, Users, Star, Server } from "lucide-react";
-import { useUser, useFirestore } from "@/firebase";
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { useDoc, useCollection } from "@/firebase/firestore/use-doc";
-import { doc, collection } from "firebase/firestore";
+import { doc, collection, query, where } from "firebase/firestore";
 import { useMemo } from "react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +77,7 @@ function PlanUsageCard({ company, users }: { company: any, users: any[] }) {
                 <div>
                     <div className="flex justify-between items-center mb-1">
                         <span className="text-sm font-medium">Cupos Usados</span>
-                        <span className="text-sm font-bold">{usedSlots} / {userLimit === Infinity ? 'Ilimitados' : userLimit}</span>
+                        <span className="text-sm font-bold">{usedSlots} / {userLimit === Infinity || userLimit === -1 ? 'Ilimitados' : userLimit}</span>
                     </div>
                     <Progress value={progressValue} aria-label={`${usedSlots} de ${userLimit} cupos usados`} />
                 </div>
@@ -117,7 +118,7 @@ export default function TeamManagementPage() {
     const { user } = useUser();
     const firestore = useFirestore();
 
-    const userDocRef = useMemo(() => {
+    const userDocRef = useMemoFirebase(() => {
         if (!user) return null;
         return doc(firestore, 'users', user.uid);
     }, [user, firestore]);
@@ -125,32 +126,20 @@ export default function TeamManagementPage() {
 
     const companyId = userData?.companyId;
 
-    const companyDocRef = useMemo(() => {
+    const companyDocRef = useMemoFirebase(() => {
         if (!companyId) return null;
         return doc(firestore, 'companies', companyId);
     }, [companyId, firestore]);
     const { data: companyData } = useDoc(companyDocRef);
 
-    const usersCollectionRef = useMemo(() => {
-        if (!companyId) return null;
-        // This assumes you will query users by companyId.
-        // For now, we will use mock data for the user list part.
-        // A proper implementation would use a query like:
-        // query(collection(firestore, 'users'), where('companyId', '==', companyId))
-        return collection(firestore, 'users');
+    const usersQuery = useMemoFirebase(() => {
+        if (!companyId || !firestore) return null;
+        return query(collection(firestore, 'users'), where('companyId', '==', companyId));
     }, [companyId, firestore]);
 
-    // NOTE: This fetches ALL users, not just those for the company.
-    // In a real app, you would add a `where('companyId', '==', companyId)` clause.
-    // This requires a Firestore index. For simplicity, we are filtering on the client.
-    const { data: allUsers } = useCollection(usersCollectionRef);
+    const { data: companyUsers } = useCollection(usersQuery);
 
-    const companyUsers = useMemo(() => {
-        if (!allUsers || !companyId) return [];
-        return allUsers.filter(u => u.companyId === companyId);
-    }, [allUsers, companyId]);
-
-    const isLoading = !companyData || !allUsers;
+    const isLoading = !companyData || !companyUsers;
 
 
   return (
@@ -163,7 +152,7 @@ export default function TeamManagementPage() {
             <p>Cargando...</p>
         ) : (
             <>
-                <PlanUsageCard company={companyData} users={companyUsers} />
+                <PlanUsageCard company={companyData} users={companyUsers || []} />
                 <InvitationCode companyId={companyId || ''} />
             </>
         )}
