@@ -51,7 +51,6 @@ export function InviteMemberDialog({ company }: { company: { roleLimits?: Record
     defaultValues: { name: "", email: "", role: "Employee" },
   });
 
-  // Safely access roleLimits and the specific role limit.
   const employeeLimit = company.roleLimits?.['Employee'];
   const memberLimit = employeeLimit === -1 ? Infinity : (employeeLimit ?? 0);
   const userLimitReached = company.usedSlots >= memberLimit;
@@ -78,9 +77,9 @@ export function InviteMemberDialog({ company }: { company: { roleLimits?: Record
           <DialogTitle>Invitar a un nuevo miembro</DialogTitle>
           <DialogDescription>
             Introduce los detalles a continuación para enviar una invitación. Se les pedirá que configuren su cuenta.
-            <p className="text-sm font-medium mt-2">
+            <div className="text-sm font-medium mt-2">
               Uso: {company.usedSlots} / {memberLimit === Infinity ? 'Ilimitados' : memberLimit} miembros
-            </p>
+            </div>
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
