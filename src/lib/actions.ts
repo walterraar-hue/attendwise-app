@@ -8,10 +8,9 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 // Ensure Firebase Admin is initialized
 if (!getApps().length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!);
-  initializeApp({
-    credential: cert(serviceAccount)
-  });
+  // When running in a Google Cloud environment, the SDK can automatically
+  // discover the service account credentials.
+  initializeApp();
 }
 
 
