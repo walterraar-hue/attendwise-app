@@ -113,9 +113,14 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       router.push('/login');
 
     } catch (error: any) {
-      console.error("Error creating team:", error);
       
-      if (error.code && error.code.includes('permission-denied')) {
+      if (error.code === 'auth/email-already-in-use') {
+        toast({
+          variant: "destructive",
+          title: "Correo electrónico en uso",
+          description: "Este correo electrónico ya está registrado. Por favor, utiliza otro.",
+        });
+      } else if (error.code && error.code.includes('permission-denied')) {
          const permissionError = new FirestorePermissionError({
               path: `BATCH WRITE to companies, users, and roles_admin`,
               operation: 'write', 
@@ -145,9 +150,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       } else {
         toast({
           title: "Error",
-          description: error.code === 'auth/email-already-in-use' 
-            ? "This email is already in use. Please try another one."
-            : error.message || "An unexpected error occurred.",
+          description: error.message || "An unexpected error occurred.",
           variant: "destructive",
         });
       }
