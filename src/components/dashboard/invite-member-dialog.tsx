@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogTrigger,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -53,7 +54,7 @@ export function InviteMemberDialog({ company }: { company: { roleLimits?: Record
   const roleLimits = company.roleLimits || {};
   const employeeLimit = roleLimits['Employee'] ?? 0;
   const managerLimit = roleLimits['Manager'] ?? 0;
-  const memberLimit = employeeLimit === -1 ? Infinity : (employeeLimit + managerLimit);
+  const memberLimit = employeeLimit === -1 || managerLimit === -1 ? Infinity : (employeeLimit + managerLimit);
   const userLimitReached = company.usedSlots >= memberLimit;
 
   const onSubmit = (values: z.infer<typeof inviteFormSchema>) => {
