@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useEffect, useState, useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, PlusCircle, UserPlus } from "lucide-react";
+import { Loader2, UserPlus } from "lucide-react";
 
 const inviteFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -55,7 +55,7 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 export function InviteMemberDialog({ company }: { company: Company }) {
   const [open, setOpen] = useState(false);
-  const [state, formAction] = useFormState(inviteUser, {
+  const [state, formAction] = useActionState(inviteUser, {
     success: false,
     message: "",
   });

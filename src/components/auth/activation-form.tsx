@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useEffect, useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -36,7 +36,7 @@ function SubmitButton() {
 }
 
 export function ActivationForm() {
-  const [state, formAction] = useFormState(activateAccount, {
+  const [state, formAction] = useActionState(activateAccount, {
     success: false,
     message: "",
   });
