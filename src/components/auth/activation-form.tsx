@@ -14,6 +14,7 @@ import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, get
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 
+
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -27,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 
 const memberSchema = z.object({
+  name: z.string().min(2, "Please enter your full name."),
   email: z.string().email("Please enter a valid email address."),
   companyCode: z.string().min(1, "Company code is required."),
   password: z.string().min(8, "Password must be at least 8 characters long."),
@@ -59,7 +61,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   const form = useForm({
     resolver: zodResolver(isPendingUserFlow ? memberSchema : adminSchema),
     defaultValues: isPendingUserFlow
-      ? { email: "", companyCode: "", password: "" }
+      ? { name: "", email: "", companyCode: "", password: "" }
       : { name: "", email: "", password: "" },
   });
 
@@ -193,7 +195,11 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const batch = writeBatch(firestore);
       const userDocRef = doc(firestore, "users", pendingUserDoc.id);
 
-      batch.update(userDocRef, { id: user.uid, status: 'active' });
+      batch.update(userDocRef, { 
+        id: user.uid, 
+        status: 'active',
+        name: values.name, // Update the name from the form
+      });
       batch.update(companyRef, { usedSlots: (companyData.usedSlots || 0) + 1 });
 
       await batch.commit();
@@ -214,7 +220,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             operation: 'update',
             requestResourceData: { 
                 "Note": "This was a batch write to activate a user.",
-                "/users/{pendingUserId}": { status: 'active' },
+                "/users/{pendingUserId}": { status: 'active', name: values.name },
                 "/companies/{companyId}": { usedSlots: 'increment' }
             }
         });
@@ -237,8 +243,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         onSubmit={form.handleSubmit(mode === 'admin' ? handleAdminSubmit : handleMemberSubmit)}
         className="space-y-4"
       >
-        {!isPendingUserFlow && (
-          <FormField
+        <FormField
             control={form.control}
             name="name"
             render={({ field }) => (
@@ -251,7 +256,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
               </FormItem>
             )}
           />
-        )}
         <FormField
           control={form.control}
           name="email"
