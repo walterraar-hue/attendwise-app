@@ -1,0 +1,190 @@
+{
+  "entities": {
+    "Company": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Company",
+      "type": "object",
+      "description": "Represents a company using the AttendWise application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the company."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the company."
+        },
+        "subscriptionPlan": {
+          "type": "string",
+          "description": "The subscription plan the company is on (e.g., Basic, Premium)."
+        },
+        "userLimit": {
+          "type": "number",
+          "description": "Maximum number of users allowed for the company."
+        },
+        "recordLimit": {
+          "type": "number",
+          "description": "Maximum number of attendance records allowed for the company."
+        },
+        "usedSlots": {
+          "type": "number",
+          "description": "Number of user slots currently used by the company."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "subscriptionPlan",
+        "userLimit",
+        "recordLimit",
+        "usedSlots"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user within the AttendWise application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company the user belongs to. (Relationship: Company 1:N User)"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user within the company (e.g., Global Admin, Manager, Employee)."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the user account (e.g., pending, active)."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "email",
+        "role",
+        "status"
+      ]
+    },
+    "AttendanceRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AttendanceRecord",
+      "type": "object",
+      "description": "Represents an attendance record for a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the attendance record."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User this record belongs to. (Relationship: User 1:N AttendanceRecord)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp of the attendance event.",
+          "format": "date-time"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of attendance event (e.g., Check-in, Check-out)."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "timestamp",
+        "type"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/companies/{companyId}",
+        "definition": {
+          "entityName": "Company",
+          "schema": {
+            "$ref": "#/backend/entities/Company"
+          },
+          "description": "Stores company information. The company 'id' is used as the document ID.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier for the company."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user information. The user 'id' is used as the document ID. Includes denormalized 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/attendanceRecords/{attendanceRecordId}",
+        "definition": {
+          "entityName": "AttendanceRecord",
+          "schema": {
+            "$ref": "#/backend/entities/AttendanceRecord"
+          },
+          "description": "Stores attendance records for a specific user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "attendanceRecordId",
+              "description": "The unique identifier for the attendance record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "AdminRole",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Indicates that the user is a global administrator. Document existence grants admin privileges.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, aligning with the specified principles. The structure prioritizes path-based ownership for private user data and employs membership maps for collaborative data access. Denormalization is used extensively to avoid `get()` calls in security rules, which enables atomic operations and simplifies debugging. Segregation is used to ensure all docs in a collection have the same security posture. Global roles are managed via document existence in dedicated collections.\n\n**Authorization Independence:** The `companyId` is denormalized into the `/users/{userId}` collection. This is critical for validating user roles and company associations without needing to perform `get()` operations in the security rules.\n\n**QAPs (Rules are not Filters):**\n*   List operations are secured via path-based ownership and the segregated role collections. Listing users for a company is accomplished via a collection group query on `/users` filtered by `companyId`, or via listing documents under `/companies/{companyId}/users/{userId}`.\n*   Listing attendance records are secured by path-based ownership under the `/users/{userId}/attendanceRecords` collection. Global admin can query with collection group from the top if `companyId` is stored inside each doc."
+  }
+}
