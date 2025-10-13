@@ -87,10 +87,10 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     }, [company, users]);
     
     const totalMemberLimit = useMemo(() => {
-        if (roleDetails.some(role => role.limit === -1)) {
-            return Infinity;
-        }
-        return roleDetails.reduce((acc, role) => acc + (role.limit > 0 ? role.limit : 0), 0);
+        return roleDetails.reduce((acc, role) => {
+            if (role.limit === -1) return Infinity;
+            return acc + role.limit;
+        }, 0);
     }, [roleDetails]);
     
     const usedSlots = users.length;
@@ -171,9 +171,9 @@ export default function TeamManagementPage() {
         return query(collection(firestore, 'users'), where('companyId', '==', companyId));
     }, [companyId, firestore]);
 
-    const { data: companyUsers, isLoading: usersLoading } = useCollection(usersQuery);
+    const { data: companyUsers, isLoading: usersLoading } = useCollection<User>(usersQuery);
 
-    const isLoading = !companyData || usersLoading;
+    const isLoading = !companyData || usersLoading || !companyUsers;
 
 
   return (
@@ -229,3 +229,5 @@ export default function TeamManagementPage() {
     </div>
   );
 }
+
+    
