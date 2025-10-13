@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction, increment, updateDoc, write } from "firebase/firestore";
+import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction, increment, updateDoc } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -184,24 +184,19 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         const pendingUserDoc = pendingUserSnapshot.docs[0];
         const pendingUserRef = pendingUserDoc.ref;
         
-        // This is the definitive fix. We use a batch write, which is simpler than a transaction
-        // and works perfectly with the simplified security rules.
         const batch = writeBatch(firestore);
 
-        // Update the original pending user document
         batch.update(pendingUserRef, {
             status: 'active',
             name: values.name,
-            id: user.uid, // This sets the definitive user ID
+            id: user.uid,
         });
         
-        // Update the company's used slots
         const companyRef = doc(firestore, "companies", values.companyCode);
         batch.update(companyRef, { 
             usedSlots: increment(1) 
         });
 
-        // Commit both writes at once
         await batch.commit();
 
         toast({ title: "¡Éxito!", description: "Cuenta activada. Ahora puedes iniciar sesión." });
@@ -220,7 +215,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
                 operation: 'update', 
                 requestResourceData: { 
                     "Note": "This was a batch write to activate a user.",
-                    "/users/{pendingUserId}": { status: "active", name: values.name, id: user.uid },
+                    "/users/{pendingUserId}": { status: "active", name: values.name, id: "{newly-created-uid}" },
                     "/companies/{companyId}": { usedSlots: "increment(1)" }
                 }
           });
