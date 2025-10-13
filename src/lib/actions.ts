@@ -8,16 +8,20 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 // Ensure Firebase Admin is initialized
 if (!getApps().length) {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT!);
     initializeApp({
-      credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+      credential: cert(serviceAccount)
     });
-  } else {
-    // This is a fallback for local development without service account JSON
-    // and should not be used in production.
-    initializeApp();
+  } catch (error) {
+    console.error("Failed to initialize Firebase Admin SDK:", error);
+    // Fallback for environments where ADC might be set up, but prefer service account
+    if (!getApps().length) {
+        initializeApp();
+    }
   }
 }
+
 
 const adminAuth = getAuth();
 const db = getFirestore();
