@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Users, Star, User, Crown } from "lucide-react";
+import { Copy, Users, Star, User, Crown, UserCog } from "lucide-react";
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { collection, query, where, doc } from "firebase/firestore";
@@ -73,20 +73,15 @@ function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) 
                 counts[user.role]++;
             }
         });
-        const memberCount = counts['Manager'] + counts['Employee'];
-        return {
-            'Global Admin': counts['Global Admin'],
-            'CEO': counts['CEO'],
-            'Operations Manager': counts['Operations Manager'],
-            'Member': memberCount,
-        };
+        return counts;
     }, [users]);
     
     const roleDetails: { name: string, limit: number, used: number, icon: React.ReactNode }[] = [
         { name: 'Global Admin', limit: roleLimits['Global Admin'], used: roleCounts['Global Admin'], icon: <User className="size-5 text-red-500" /> },
         { name: 'CEO', limit: roleLimits['CEO'], used: roleCounts['CEO'], icon: <Crown className="size-5 text-yellow-500" /> },
         { name: 'Operations Manager', limit: roleLimits['Operations Manager'], used: roleCounts['Operations Manager'], icon: <Star className="size-5 text-blue-500" /> },
-        { name: 'Member', limit: roleLimits['Member'], used: roleCounts['Member'], icon: <Users className="size-5 text-green-500" /> },
+        { name: 'Manager', limit: roleLimits['Manager'], used: roleCounts['Manager'], icon: <UserCog className="size-5 text-indigo-500" /> },
+        { name: 'Employee', limit: roleLimits['Member'], used: roleCounts['Employee'], icon: <Users className="size-5 text-green-500" /> },
     ].filter(role => role.limit !== 0 && role.limit !== undefined);
 
 
@@ -106,7 +101,7 @@ function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) 
                         <div key={role.name} className="flex items-center justify-between p-3 bg-accent/50 rounded-md">
                             <div className="flex items-center gap-3">
                                 {role.icon}
-                                <span className="font-semibold">{role.name}</span>
+                                <span className="font-semibold">{role.name === 'Employee' ? 'Miembros' : role.name}</span>
                             </div>
                             <Badge variant="outline">
                                 {role.used} / {role.limit === -1 ? 'Ilimitados' : role.limit}
