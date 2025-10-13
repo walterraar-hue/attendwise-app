@@ -1,3 +1,4 @@
+
 export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager' | 'Employee';
 
 export type UserStatus = 'active' | 'pending' | 'inactive';
@@ -8,25 +9,22 @@ export interface User {
   email: string;
   role: UserRole;
   status: UserStatus;
-  avatarUrl: string;
+  avatarUrl?: string;
   teamId?: string;
 }
 
 export interface Company {
   id: string;
   name: string;
-  subscription: {
-    plan: 'Basic' | 'Pro' | 'Premium';
-    userLimit: number;
-    recordLimit: number;
-    usedSlots: number;
-    roleLimits: {
-        'Global Admin': number;
-        'Operations Manager': number;
-        'CEO': number;
-        'Member': number; // For Manager and Employee roles
-    }
-  };
+  subscriptionPlan: 'basic' | 'pro' | 'premium';
+  usedSlots: number;
+  roleLimits: {
+      'Global Admin': number;
+      'Operations Manager': number;
+      'CEO': number;
+      'Manager': number;
+      'Employee': number; // Employee is the internal name for "Miembro"
+  }
   policies: string;
 }
 
@@ -41,3 +39,5 @@ export interface AttendanceRecord {
 }
 
 export type Role = "admin" | "manager";
+
+    

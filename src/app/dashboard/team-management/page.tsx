@@ -1,3 +1,4 @@
+
 'use client'
 
 import Header from "@/components/dashboard/header";
@@ -5,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Users, Star, User as UserIcon, Crown, UserCog } from "lucide-react";
+import { Copy, Users, Star, User as UserIcon, Crown, UserCog, Building } from "lucide-react";
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { collection, query, where, doc } from "firebase/firestore";
@@ -16,6 +17,7 @@ import type { User } from "@/lib/types";
 import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog";
 import { MembersTable } from "@/components/dashboard/members-table";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 
 // A server component to display the invitation code.
 // In a real app, this might be a client component to handle the copy action.
@@ -62,38 +64,9 @@ function InvitationCode({ companyId }: { companyId: string }) {
 function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
     const roleLimits = company?.roleLimits || {};
-    const usedSlots = company?.usedSlots || 0;
+    const usedSlots = users.length;
 
-    const memberLimit = useMemo(() => {
-        if (!roleLimits) return 0;
-        const employeeLimit = roleLimits['Employee'] ?? 0;
-        if (employeeLimit === -1) return Infinity;
-
-        // Sum all limits except Global Admin which is usually separate
-        return (roleLimits['Employee'] ?? 0) + 
-               (roleLimits['Manager'] ?? 0) + 
-               (roleLimits['Operations Manager'] ?? 0) + 
-               (roleLimits['CEO'] ?? 0);
-    }, [roleLimits]);
-
-
-    const roleCounts = useMemo(() => {
-        const counts: Record<string, number> = {
-            'Global Admin': 0,
-            'CEO': 0,
-            'Operations Manager': 0,
-            'Manager': 0,
-            'Employee': 0,
-        };
-        users.forEach(user => {
-            if (counts.hasOwnProperty(user.role)) {
-                counts[user.role]++;
-            }
-        });
-        return counts;
-    }, [users]);
-    
-    const allRoles: { name: string; icon: React.ReactNode; displayName: string }[] = [
+    const allPossibleRoles: { name: string; icon: React.ReactNode; displayName: string }[] = [
         { name: 'Global Admin', icon: <UserIcon className="size-5 text-red-500" />, displayName: 'Global Admin' },
         { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" />, displayName: 'CEO' },
         { name: 'Operations Manager', icon: <Star className="size-5 text-blue-500" />, displayName: 'Admin de Operaciones' },
@@ -101,17 +74,37 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
         { name: 'Employee', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
     ];
 
-    const roleDetails = allRoles
+    const roleCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        allPossibleRoles.forEach(role => {
+            counts[role.name] = 0;
+        });
+        users.forEach(user => {
+            if (counts.hasOwnProperty(user.role)) {
+                counts[user.role]++;
+            }
+        });
+        return counts;
+    }, [users]);
+
+    const roleDetails = allPossibleRoles
         .map(role => {
             const limit = roleLimits[role.name];
             return {
                 ...role,
-                limit: limit,
+                limit: typeof limit === 'number' ? limit : 0,
                 used: roleCounts[role.name] ?? 0,
             };
         })
-        .filter(role => role.limit !== undefined && role.limit !== 0);
+        .filter(role => role.limit !== 0); // Only show roles that are part of the plan
 
+    const totalMemberLimit = useMemo(() => {
+        const limit = roleDetails.reduce((acc, role) => {
+            if (role.limit === -1) return Infinity;
+            return acc + role.limit;
+        }, 0);
+        return limit;
+    }, [roleDetails]);
 
     return (
         <Card>
@@ -121,29 +114,39 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
                     <Badge variant="secondary" className="capitalize">{planName}</Badge>
                 </CardTitle>
                 <CardDescription>Resumen del uso de licencias de tu equipo.</CardDescription>
-                <div className="pt-2">
-                    <p className="text-sm font-medium">Uso Total de Miembros</p>
-                    <p className="text-2xl font-bold">
-                        {usedSlots} / {memberLimit === Infinity ? 'Ilimitados' : memberLimit}
-                    </p>
-                </div>
             </CardHeader>
             <CardContent className="space-y-4">
-                 <Separator />
-                <div className="space-y-3 pt-2">
-                  <p className="text-sm font-medium">Uso de Cupos por Rol</p>
+                <div className="space-y-2">
+                    <div className="flex justify-between items-baseline">
+                        <p className="text-sm font-medium">Uso Total de Miembros</p>
+                        <p className="text-lg font-bold">
+                            {usedSlots} / {totalMemberLimit === Infinity ? 'Ilimitados' : totalMemberLimit}
+                        </p>
+                    </div>
+                     <Progress value={totalMemberLimit === Infinity ? 0 : (usedSlots / totalMemberLimit) * 100} />
+                </div>
+                 
+                <Separator />
+
+                <div className="space-y-4 pt-2">
+                  <h4 className="text-sm font-medium">Uso de Cupos por Rol</h4>
                    {roleDetails.length > 0 ? roleDetails.map(role => (
-                        <div key={role.name} className="flex items-center justify-between p-3 bg-accent/50 rounded-md">
+                        <div key={role.name} className="space-y-2">
                             <div className="flex items-center gap-3">
                                 {role.icon}
-                                <span className="font-semibold">{role.displayName}</span>
+                                <div className="flex-1">
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-semibold text-sm">{role.displayName}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                            {role.used} / {role.limit === -1 ? 'Ilimitados' : role.limit}
+                                        </Badge>
+                                    </div>
+                                    <Progress value={role.limit === -1 || role.limit === 0 ? 0 : (role.used / role.limit) * 100} className="h-2 mt-1" />
+                                </div>
                             </div>
-                            <Badge variant="outline">
-                                {role.used} / {role.limit === -1 ? 'Ilimitados' : role.limit}
-                            </Badge>
                         </div>
                     )) : (
-                      <p className="text-sm text-muted-foreground text-center py-4">No hay información de cupos disponible.</p>
+                      <p className="text-sm text-muted-foreground text-center py-4">No hay información de cupos disponible para este plan.</p>
                     )}
                 </div>
 
@@ -192,7 +195,24 @@ export default function TeamManagementPage() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start mb-8">
         {isLoading ? (
-            <p>Cargando...</p>
+             <Card>
+                <CardHeader>
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-1/3" />
+                        <Skeleton className="h-4 w-full" />
+                    </div>
+                    <Separator />
+                    <div className="space-y-4">
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                        <Skeleton className="h-8 w-full" />
+                    </div>
+                </CardContent>
+            </Card>
         ) : (
             <>
                 <PlanUsageCard company={companyData} users={companyUsers || []} />
@@ -215,3 +235,5 @@ export default function TeamManagementPage() {
     </div>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -52,7 +53,7 @@ export function MembersTable({ data }: { data: User[] }) {
                 <div className="flex items-center gap-3">
                   <Avatar>
                     <AvatarImage src={user.avatarUrl} alt={user.name} />
-                    <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>{user.name ? user.name.charAt(0) : 'U'}</AvatarFallback>
                   </Avatar>
                   <div className="font-medium">
                     <p>{user.name}</p>
@@ -91,3 +92,5 @@ export function MembersTable({ data }: { data: User[] }) {
     </div>
   );
 }
+
+    

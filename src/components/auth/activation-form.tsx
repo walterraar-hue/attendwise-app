@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -74,26 +75,27 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       
       const roleLimits = {
           'Global Admin': 1,
-          'Operations Manager': 0,
           'CEO': 0,
-          'Member': 50,
+          'Operations Manager': 0,
+          'Manager': 0,
+          'Employee': 50,
       };
 
       if (plan === 'pro') {
           roleLimits['Operations Manager'] = 1;
-          roleLimits['Member'] = 80;
+          roleLimits['Manager'] = 5;
+          roleLimits['Employee'] = 80;
       } else if (plan === 'premium') {
-          roleLimits['Operations Manager'] = 2;
           roleLimits['CEO'] = 1;
-          roleLimits['Member'] = -1; // Unlimited
+          roleLimits['Operations Manager'] = 2;
+          roleLimits['Manager'] = 10;
+          roleLimits['Employee'] = -1; // Unlimited
       }
 
       const companyData = {
         id: companyId,
         name: `${values.name}'s Company`,
         subscriptionPlan: plan,
-        userLimit: roleLimits['Member'],
-        recordLimit: 1000, // Placeholder
         usedSlots: 1,
         createdAt: serverTimestamp(),
         roleLimits: roleLimits,
@@ -146,9 +148,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
                     id: `COMP-TIMESTAMP`,
                     name: `${values.name}'s Company`,
                     subscriptionPlan: plan,
-                    userLimit: plan === 'basic' ? 50 : plan === 'pro' ? 80 : -1,
-                    recordLimit: 1000,
-                    usedSlots: 1,
+                    roleLimits: '...' // Simplified for error
                 },
                 user: {
                     id: 'NEW_USER_UID',
@@ -290,3 +290,5 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
+
+    
