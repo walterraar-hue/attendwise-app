@@ -16,7 +16,6 @@ import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import type { User } from "@/lib/types";
 import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog";
-import { MembersTable } from "@/components/dashboard/members-table";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -88,26 +87,27 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
         });
         return counts;
     }, [users]);
+    
+    const roleDetails = useMemo(() => {
+        return allPossibleRoles
+            .map(role => {
+                const limit = roleLimits[role.name] ?? 0;
+                return {
+                    ...role,
+                    limit: limit,
+                    used: roleCounts[role.name] ?? 0,
+                };
+            })
+            .filter(role => role.limit !== 0); // Only show roles that are part of the plan
+    }, [roleLimits, roleCounts]);
 
-    const roleDetails = allPossibleRoles
-        .map(role => {
-            const limit = roleLimits[role.name];
-            return {
-                ...role,
-                limit: typeof limit === 'number' ? limit : 0,
-                used: roleCounts[role.name] ?? 0,
-            };
-        })
-        .filter(role => role.limit !== 0); // Only show roles that are part of the plan
 
     const totalMemberLimit = useMemo(() => {
-        return Object.values(roleLimits).reduce((acc: number, limit: any) => {
-            if (typeof limit !== 'number') return acc;
-            // If any role is unlimited, the total is effectively unlimited.
-            if (limit === -1) return Infinity;
-            return acc + limit;
-        }, 0);
-    }, [roleLimits]);
+        if (roleDetails.some(role => role.limit === -1)) {
+            return Infinity;
+        }
+        return roleDetails.reduce((acc, role) => acc + role.limit, 0);
+    }, [roleDetails]);
 
 
     return (
@@ -244,3 +244,5 @@ export default function TeamManagementPage() {
     </div>
   );
 }
+
+    
