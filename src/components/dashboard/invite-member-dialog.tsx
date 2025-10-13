@@ -34,7 +34,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, UserPlus } from "lucide-react";
-import type { Company } from "@/lib/types";
 
 const inviteFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -51,8 +50,10 @@ export function InviteMemberDialog({ company }: { company: { roleLimits?: Record
     defaultValues: { name: "", email: "", role: "Employee" },
   });
 
-  const employeeLimit = company.roleLimits?.['Employee'];
-  const memberLimit = employeeLimit === -1 ? Infinity : (employeeLimit ?? 0);
+  const roleLimits = company.roleLimits || {};
+  const employeeLimit = roleLimits['Employee'] ?? 0;
+  const managerLimit = roleLimits['Manager'] ?? 0;
+  const memberLimit = employeeLimit === -1 ? Infinity : (employeeLimit + managerLimit);
   const userLimitReached = company.usedSlots >= memberLimit;
 
   const onSubmit = (values: z.infer<typeof inviteFormSchema>) => {
@@ -78,9 +79,6 @@ export function InviteMemberDialog({ company }: { company: { roleLimits?: Record
           <DialogDescription>
             Introduce los detalles a continuación para enviar una invitación. Se les pedirá que configuren su cuenta.
           </DialogDescription>
-          <div className="text-sm font-medium mt-2">
-            Uso: {company.usedSlots} / {memberLimit === Infinity ? 'Ilimitados' : memberLimit} miembros
-          </div>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">

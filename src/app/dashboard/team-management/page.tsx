@@ -62,6 +62,8 @@ function InvitationCode({ companyId }: { companyId: string }) {
 function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
     const planName = company?.subscriptionPlan || 'N/A';
     const roleLimits = company?.roleLimits || {};
+    const usedSlots = company?.usedSlots || 0;
+    const memberLimit = roleLimits['Employee'] === -1 ? Infinity : (roleLimits['Manager'] ?? 0) + (roleLimits['Employee'] ?? 0);
 
     const roleCounts = useMemo(() => {
         const counts: Record<string, number> = {
@@ -92,11 +94,11 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
             const limit = roleLimits[role.name];
             return {
                 ...role,
-                limit: limit, // Can be undefined, number, or -1
+                limit: limit,
                 used: roleCounts[role.name] ?? 0,
             };
         })
-        .filter(role => role.limit !== 0 && role.limit !== undefined);
+        .filter(role => role.limit > 0 || role.limit === -1);
 
 
     return (
@@ -107,9 +109,16 @@ function PlanUsageCard({ company, users }: { company: any, users: User[] }) {
                     <Badge variant="secondary" className="capitalize">{planName}</Badge>
                 </CardTitle>
                 <CardDescription>Resumen del uso de licencias de tu equipo.</CardDescription>
+                <div className="pt-2">
+                    <p className="text-sm font-medium">Uso Total de Miembros</p>
+                    <p className="text-2xl font-bold">
+                        {usedSlots} / {memberLimit === Infinity ? 'Ilimitados' : memberLimit}
+                    </p>
+                </div>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="space-y-3">
+                 <Separator />
+                <div className="space-y-3 pt-2">
                   <p className="text-sm font-medium">Uso de Cupos por Rol</p>
                    {roleDetails.length > 0 ? roleDetails.map(role => (
                         <div key={role.name} className="flex items-center justify-between p-3 bg-accent/50 rounded-md">
