@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, Settings, LogOut, Timer } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Timer, ClipboardCheck, History, CalendarDays } from 'lucide-react';
 import {
   SidebarHeader,
   SidebarContent,
@@ -47,6 +47,42 @@ export function SidebarNav({ role, companyName }: { role: Role, companyName: str
               <Link href={`/dashboard?role=${role}`}>
                 <LayoutDashboard />
                 <span>Dashboard</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+           <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive('/dashboard/register-attendance')}
+              tooltip="Registrar Asistencia"
+            >
+              <Link href={`/dashboard/register-attendance?role=${role}`}>
+                <ClipboardCheck />
+                <span>Registrar Asistencia</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive('/dashboard/my-history')}
+              tooltip="Mi Historial"
+            >
+              <Link href={`/dashboard/my-history?role=${role}`}>
+                <History />
+                <span>Mi Historial</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive('/dashboard/attendance')}
+              tooltip="Asistencia"
+            >
+              <Link href={`/dashboard/attendance?role=${role}`}>
+                <CalendarDays />
+                <span>Asistencia</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
