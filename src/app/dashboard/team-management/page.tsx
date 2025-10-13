@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Copy, Users, Star, Server, User, Crown } from "lucide-react";
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { useDoc } from "@/firebase/firestore/use-doc";
-import { collection, query, where } from "firebase/firestore";
+import { collection, query, where, doc } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
