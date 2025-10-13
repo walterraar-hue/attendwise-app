@@ -72,27 +72,28 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      const companyId = values.companyCode || `COMP-${Date.now()}`;
+      const companyId = `COMP-${Date.now()}`;
       
-      const roleLimits = {
-          'Global Admin': 1,
-          'CEO': 0,
-          'Operations Manager': 0,
-          'Manager': 0,
-          'Employee': 0,
+      const baseRoleLimits = {
+        'Global Admin': 0,
+        'CEO': 0,
+        'Operations Manager': 0,
+        'Manager': 0,
+        'Employee': 0,
       };
 
       if (plan === 'basic') {
-          roleLimits['Employee'] = 50;
+          baseRoleLimits['Global Admin'] = 1;
+          baseRolelimits['Employee'] = 50;
       } else if (plan === 'pro') {
-          roleLimits['Employee'] = 80;
-          roleLimits['Manager'] = 5;
-          roleLimits['Operations Manager'] = 1;
+          baseRoleLimits['Global Admin'] = 1;
+          baseRoleLimits['Operations Manager'] = 1;
+          baseRoleLimits['Employee'] = 80;
       } else if (plan === 'premium') {
-          roleLimits['Employee'] = -1; // Unlimited
-          roleLimits['Manager'] = -1; // Unlimited
-          roleLimits['CEO'] = 1;
-          roleLimits['Operations Manager'] = 2;
+          baseRoleLimits['Global Admin'] = 1;
+          baseRoleLimits['CEO'] = 1;
+          baseRoleLimits['Operations Manager'] = 2;
+          baseRoleLimits['Employee'] = -1; // Unlimited
       }
 
       const companyData = {
@@ -101,7 +102,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         subscriptionPlan: plan,
         usedSlots: 1,
         createdAt: serverTimestamp(),
-        roleLimits: roleLimits,
+        roleLimits: baseRoleLimits,
       };
 
       const userData = {
