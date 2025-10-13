@@ -1,16 +1,18 @@
 
+
 export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager' | 'Employee';
 
 export type UserStatus = 'active' | 'pending' | 'inactive';
 
 export interface User {
-  id: string;
+  id?: string; // Can be optional for pending users before they have a UID
   name: string;
   email: string;
   role: UserRole;
   status: UserStatus;
   avatarUrl?: string;
   teamId?: string;
+  companyId: string;
 }
 
 export interface Company {

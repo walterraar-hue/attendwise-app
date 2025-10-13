@@ -1,5 +1,6 @@
 
 
+
 'use client'
 
 import Header from "@/components/dashboard/header";
@@ -75,24 +76,27 @@ function PlanUsageCard({ company, users }: { company: any; users: User[] }) {
         { name: 'Employee', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
     ];
 
-    const roleDetails = useMemo(() => {
+    const { roleDetails, totalMemberLimit, usedSlots } = useMemo(() => {
         const companyRoleLimits = company?.roleLimits || {};
-        return allPossibleRoles
+        const roles = allPossibleRoles
             .map(roleInfo => {
                 const limit = companyRoleLimits[roleInfo.name] ?? 0;
                 const used = users.filter(u => u.role === roleInfo.name).length;
                 return { ...roleInfo, limit, used };
             })
-            .filter(role => role.limit > 0 || role.limit === -1); // Only show roles that are actually part of the plan
-    }, [company, users]);
+            .filter(role => role.limit > 0 || role.limit === -1); 
 
-    const { totalMemberLimit, usedSlots } = useMemo(() => {
-        const totalLimit = roleDetails.reduce((acc, role) => {
-            if (role.limit === -1) return Infinity; // If any role is unlimited, we can't sum it up in a finite way.
+        const totalLimit = roles.reduce((acc, role) => {
+            if (role.limit === -1) return Infinity;
+            if (acc === Infinity) return Infinity;
             return acc + role.limit;
         }, 0);
-        return { totalMemberLimit: totalLimit, usedSlots: users.length };
-    }, [roleDetails, users]);
+
+        const currentUsedSlots = users.length;
+        
+        return { roleDetails: roles, totalMemberLimit: totalLimit, usedSlots: currentUsedSlots };
+    }, [company, users]);
+
 
     return (
         <Card>
@@ -179,10 +183,10 @@ export default function TeamManagementPage() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <Header title="Gestión de Equipo" />
-        {companyData && <InviteMemberDialog company={companyData as any} />}
+        {companyData && <InviteMemberDialog company={companyData as any} users={companyUsers || []} />}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-8">
-        {isLoading ? (
+        {isLoading || !companyData || !companyUsers ? (
              <Card className="lg:col-span-2">
                 <CardHeader>
                     <Skeleton className="h-6 w-3/4" />

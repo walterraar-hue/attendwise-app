@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState } from "react";
@@ -9,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore, FirestorePermissionError, errorEmitter } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, updateDoc, limit } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -71,7 +72,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      const companyId = `COMP-${Date.now()}`;
+      const companyId = values.companyCode || `COMP-${Date.now()}`;
       
       const roleLimits = {
           'Global Admin': 1,
@@ -84,14 +85,14 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       if (plan === 'basic') {
           roleLimits['Employee'] = 50;
       } else if (plan === 'pro') {
-          roleLimits['Operations Manager'] = 1;
-          roleLimits['Manager'] = 5;
           roleLimits['Employee'] = 80;
+          roleLimits['Manager'] = 5;
+          roleLimits['Operations Manager'] = 1;
       } else if (plan === 'premium') {
+          roleLimits['Employee'] = -1; // Unlimited
+          roleLimits['Manager'] = -1; // Unlimited
           roleLimits['CEO'] = 1;
           roleLimits['Operations Manager'] = 2;
-          roleLimits['Manager'] = -1; // Unlimited
-          roleLimits['Employee'] = -1; // Unlimited
       }
 
       const companyData = {
@@ -177,51 +178,74 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     } 
   };
 
-  const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
+ const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
     try {
-        const companyRef = doc(firestore, "companies", values.companyCode);
-        const companySnap = await getDoc(companyRef);
+      // 1. Find the pending invitation
+      const pendingUserQuery = query(
+        collection(firestore, "users"),
+        where("email", "==", values.email),
+        where("companyId", "==", values.companyCode),
+        where("status", "==", "pending"),
+        limit(1)
+      );
+      const pendingUserSnapshot = await getDocs(pendingUserQuery);
 
-        if (!companySnap.exists()) {
-            toast({ title: "Error", description: "Invalid Company Code", variant: "destructive" });
-            setIsLoading(false);
-            return;
-        }
+      if (pendingUserSnapshot.empty) {
+        toast({ title: "Error de Activación", description: "No se encontró una invitación pendiente para este correo electrónico y código de empresa.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
 
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
-        const companyData = companySnap.data();
+      const pendingUserDoc = pendingUserSnapshot.docs[0];
+      const pendingUserData = pendingUserDoc.data();
 
-        const userData = {
-          id: user.uid,
-          companyId: values.companyCode,
-          email: values.email,
-          name: user.displayName || "New User", // Placeholder name
-          role: 'Employee',
-          status: 'active',
-        };
+      // 2. Create the Firebase Auth user
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
 
-        const batch = writeBatch(firestore);
-        
-        const userDocRef = doc(firestore, 'users', user.uid);
-        batch.set(userDocRef, userData);
+      // 3. Atomically update the user document and company's used slots
+      const companyRef = doc(firestore, "companies", values.companyCode);
+      const companySnap = await getDoc(companyRef);
+      if (!companySnap.exists()) {
+          // This should be rare if the invitation existed, but good to check
+          throw new Error("La compañía asociada a esta invitación ya no existe.");
+      }
+      const companyData = companySnap.data();
 
-        batch.update(companyRef, { usedSlots: companyData.usedSlots + 1 });
+      const batch = writeBatch(firestore);
 
-        await batch.commit();
-        
-        toast({ title: "Éxito!", description: "Account activated. You can now log in." });
-        router.push('/login');
+      // Update the user document from 'pending' to 'active'
+      batch.update(pendingUserDoc.ref, {
+        id: user.uid, // Set the final UID
+        status: 'active',
+        name: pendingUserData.name, // Keep the name from the invitation
+      });
+      
+      // Increment the company's used slots
+      batch.update(companyRef, { usedSlots: (companyData.usedSlots || 0) + 1 });
+
+      await batch.commit();
+
+      toast({ title: "¡Éxito!", description: "Cuenta activada. Ahora puedes iniciar sesión." });
+      router.push('/login');
 
     } catch (error: any) {
-        console.error("Error activating member account:", error);
+      console.error("Error activating member account:", error);
+       if (error.code === 'auth/email-already-in-use') {
+        toast({
+          variant: "destructive",
+          title: "Correo electrónico en uso",
+          description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
+        });
+      } else {
         toast({
             title: "Error",
-            description: error.message || "An unexpected error occurred.",
+            description: error.message || "Ocurrió un error inesperado.",
             variant: "destructive",
         });
-        setIsLoading(false);
+      }
+      setIsLoading(false);
     }
   };
 

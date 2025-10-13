@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState } from "react";
@@ -6,6 +7,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "@/hooks/use-toast";
+import { useFirestore, useUser } from "@/firebase";
+import { collection, addDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -35,36 +38,86 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, UserPlus } from "lucide-react";
+import { UserRole, User } from "@/lib/types";
 
 const inviteFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   email: z.string().email("Please enter a valid email address."),
-  role: z.enum(["Manager", "Employee"]),
+  role: z.nativeEnum(
+    Object.fromEntries(
+      ['Manager', 'Employee', 'Operations Manager', 'CEO'].map(role => [role, role])
+    )
+  ) as z.ZodType<UserRole>,
 });
 
 
-export function InviteMemberDialog({ company }: { company: { roleLimits?: Record<string, number>, usedSlots: number } }) {
+export function InviteMemberDialog({ company, users }: { company: { id: string, roleLimits?: Record<string, number>, usedSlots: number }; users: User[] }) {
   const [open, setOpen] = useState(false);
+  const firestore = useFirestore();
+  const { user: adminUser } = useUser();
   
   const form = useForm<z.infer<typeof inviteFormSchema>>({
     resolver: zodResolver(inviteFormSchema),
     defaultValues: { name: "", email: "", role: "Employee" },
   });
 
-  const roleLimits = company.roleLimits || {};
-  const employeeLimit = roleLimits['Employee'] ?? 0;
-  const managerLimit = roleLimits['Manager'] ?? 0;
-  const memberLimit = employeeLimit === -1 || managerLimit === -1 ? Infinity : (employeeLimit + managerLimit);
-  const userLimitReached = company.usedSlots >= memberLimit;
+  const onSubmit = async (values: z.infer<typeof inviteFormSchema>) => {
+    if (!adminUser || !company?.id) {
+        toast({ title: "Error", description: "No se pudo identificar la compañía.", variant: "destructive"});
+        return;
+    }
 
-  const onSubmit = (values: z.infer<typeof inviteFormSchema>) => {
-    // TODO: Implement invitation logic here using Firebase
-    console.log(values);
-    toast({
-      title: "Función no implementada",
-      description: "La lógica para invitar a un usuario aún no está conectada.",
-    });
+    // Check if user with this email already exists in the company
+    const userExists = users.some(u => u.email === values.email);
+    if(userExists) {
+        toast({ title: "Usuario ya existe", description: "Un usuario con este correo electrónico ya es parte del equipo.", variant: "destructive"});
+        return;
+    }
+    
+    // Check role limits
+    const roleLimits = company.roleLimits || {};
+    const roleLimit = roleLimits[values.role] ?? 0;
+    const usersInRole = users.filter(u => u.role === values.role).length;
+
+    if (roleLimit !== -1 && usersInRole >= roleLimit) {
+        toast({
+            title: "Límite de Rol Alcanzado",
+            description: `Has alcanzado el límite de cupos para el rol '${values.role}'.`,
+            variant: "destructive"
+        });
+        return;
+    }
+
+    try {
+        await addDoc(collection(firestore, "users"), {
+            companyId: company.id,
+            name: values.name,
+            email: values.email,
+            role: values.role,
+            status: "pending"
+        });
+
+        toast({
+            title: "Invitación Enviada",
+            description: `${values.name} ha sido invitado al equipo. Su estado es 'pendiente' hasta que se registre.`,
+        });
+        form.reset();
+        setOpen(false);
+
+    } catch(error) {
+        console.error("Error creating invitation:", error);
+        toast({ title: "Error", description: "No se pudo crear la invitación.", variant: "destructive" });
+    }
   }
+
+  // Get available roles based on plan limits
+  const availableRoles = (Object.keys(company.roleLimits || {}) as UserRole[])
+    .filter(role => {
+        if (role === 'Global Admin') return false; // Cannot invite a global admin
+        const limit = company.roleLimits?.[role] ?? 0;
+        return limit > 0 || limit === -1;
+    });
+
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -78,7 +131,7 @@ export function InviteMemberDialog({ company }: { company: { roleLimits?: Record
         <DialogHeader>
           <DialogTitle>Invitar a un nuevo usuario</DialogTitle>
           <DialogDescription>
-            Introduce los detalles a continuación para enviar una invitación. Se les pedirá que configuren su cuenta.
+            Introduce los detalles a continuación. El usuario aparecerá como 'pendiente' hasta que se registre con su email y el código de la compañía.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -122,22 +175,20 @@ export function InviteMemberDialog({ company }: { company: { roleLimits?: Record
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Manager">Manager</SelectItem>
-                      <SelectItem value="Employee">Miembro</SelectItem>
+                        {availableRoles.map(role => (
+                            <SelectItem key={role} value={role}>{role}</SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-             {userLimitReached && (
-                <p className="text-sm font-medium text-destructive">Has alcanzado tu límite de usuarios. Por favor, actualiza tu plan para invitar a más miembros.</p>
-             )}
             <DialogFooter>
                 <DialogClose asChild>
                     <Button type="button" variant="secondary">Cancelar</Button>
                 </DialogClose>
-                <Button type="submit" disabled={true || userLimitReached || form.formState.isSubmitting}>
+                <Button type="submit" disabled={form.formState.isSubmitting}>
                   {form.formState.isSubmitting ? <Loader2 className="animate-spin" /> : "Enviar Invitación"}
                 </Button>
             </DialogFooter>
