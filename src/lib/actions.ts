@@ -1,18 +1,18 @@
 "use server";
 
 import { z } from 'zod';
-import { company, users } from './data';
-import { getApps, initializeApp, cert } from 'firebase-admin/app';
+import { company } from './data';
+import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 // Ensure Firebase Admin is initialized
 if (!getApps().length) {
   // When running in a Google Cloud environment, the SDK can automatically
-  // discover the service account credentials.
+  // discover the service account credentials. Passing no arguments initializes
+  // with default credentials.
   initializeApp();
 }
-
 
 const adminAuth = getAuth();
 const db = getFirestore();
@@ -24,10 +24,6 @@ const inviteSchema = z.object({
 });
 
 export async function inviteUser(prevState: any, formData: FormData) {
-  // NOTE: In a real application, this would be a database transaction.
-  // We simulate the checks and updates here.
-
-  // 1. Re-verify user limits from a reliable source (Firestore)
   const companyDoc = await db.collection('companies').doc(company.id).get();
   const companyData = companyDoc.data();
 
@@ -51,20 +47,16 @@ export async function inviteUser(prevState: any, formData: FormData) {
   
   const { email, name, role } = validatedFields.data;
 
-  // 2. Check if user already exists in Auth
   try {
     await adminAuth.getUserByEmail(email);
     return { success: false, message: `User with email ${email} already exists.` };
   } catch (error: any) {
     if (error.code !== 'auth/user-not-found') {
-      // Some other error occurred
       return { success: false, message: error.message };
     }
-    // User does not exist, which is what we want. Continue.
   }
 
-  // 3. Create a 'pending' user document and update company slots atomically
-  const userRef = db.collection('users').doc(); // Firestore generates ID
+  const userRef = db.collection('users').doc(); 
   const companyRef = db.collection('companies').doc(company.id);
 
   try {
@@ -94,13 +86,8 @@ const activateSchema = z.object({
     password: z.string().min(8, "Password must be at least 8 characters."),
 });
 
-
 export async function activateAccount(prevState: any, formData: FormData) {
-    const validatedFields = activateSchema.safeParse({
-        email: formData.get('email'),
-        companyCode: formData.get('companyCode'),
-        password: formData.get('password'),
-    });
+    const validatedFields = activateSchema.safeParse(Object.fromEntries(formData.entries()));
 
     if (!validatedFields.success) {
         return {
@@ -112,7 +99,6 @@ export async function activateAccount(prevState: any, formData: FormData) {
     
     const { email, companyCode, password } = validatedFields.data;
     
-    // Find the pending user
     const usersRef = db.collection('users');
     const q = usersRef.where('email', '==', email).where('status', '==', 'pending').where('companyId', '==', companyCode);
     const querySnapshot = await q.get();
@@ -125,17 +111,15 @@ export async function activateAccount(prevState: any, formData: FormData) {
     const userData = userDoc.data();
 
     try {
-        // Create user in Firebase Auth
         const userRecord = await adminAuth.createUser({
             email,
             password,
             displayName: userData.name,
         });
 
-        // Update user document in Firestore to 'active' and link UID
         await userDoc.ref.update({
             status: 'active',
-            id: userRecord.uid, // Replace temporary ID with real UID
+            id: userRecord.uid, 
         });
 
         return { success: true, message: "Account activated successfully! You can now log in." };
@@ -144,82 +128,6 @@ export async function activateAccount(prevState: any, formData: FormData) {
         console.error("Error activating account:", error);
         if (error.code === 'auth/email-already-exists') {
             return { success: false, message: "This email is already registered." };
-        }
-        return { success: false, message: error.message || "An unexpected error occurred." };
-    }
-}
-
-
-const createTeamSchema = z.object({
-    name: z.string().min(2, "Please enter your full name."),
-    email: z.string().email("Invalid email address."),
-    password: z.string().min(8, "Password must be at least 8 characters long."),
-});
-
-export async function createTeam(prevState: any, formData: FormData) {
-    const validatedFields = createTeamSchema.safeParse(Object.fromEntries(formData));
-
-    if (!validatedFields.success) {
-        const firstError = Object.values(validatedFields.error.flatten().fieldErrors)[0]?.[0];
-        return {
-          success: false,
-          message: firstError || "Invalid form data. Please check your entries.",
-        };
-    }
-    
-    const { email, password, name } = validatedFields.data;
-
-    try {
-        const companyId = `COMP-${Date.now()}`;
-        const companyName = "AttendWise Company"; // Default name
-        
-        // 1. Create Firebase Auth user
-        const userRecord = await adminAuth.createUser({
-            email,
-            password,
-            displayName: name,
-        });
-        
-        const uid = userRecord.uid;
-
-        // Use a batch to perform atomic writes
-        const batch = db.batch();
-
-        // 2. Create company document in Firestore
-        const companyDocRef = db.collection('companies').doc(companyId);
-        batch.set(companyDocRef, {
-            id: companyId,
-            name: companyName,
-            subscriptionPlan: 'Pro',
-            userLimit: 10,
-            recordLimit: 1000,
-            usedSlots: 1,
-        });
-
-        // 3. Create user document in Firestore, linking to the new company
-        const userDocRef = db.collection('users').doc(uid);
-        batch.set(userDocRef, {
-            id: uid,
-            companyId: companyId,
-            email: email,
-            name: name, // Save the full name
-            role: 'Global Admin',
-            status: 'active',
-        });
-
-        // 4. Set global admin role in a separate collection for security rules
-        const adminRoleRef = db.collection('roles_admin').doc(uid);
-        batch.set(adminRoleRef, { admin: true });
-
-        // Commit the batch
-        await batch.commit();
-
-        return { success: true, message: `Team '${companyName}' created successfully. You can now log in.` };
-
-    } catch (error: any) {
-        console.error("Error creating team:", error);
-        if (error.code === 'auth/email-already-exists') {
-            return { success: false, message: "This email is already in use. Please try another one." };
         }
         return { success: false, message: error.message || "An unexpected error occurred." };
     }

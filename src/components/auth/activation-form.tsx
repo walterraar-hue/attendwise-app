@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
-import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { activateAccount, createTeam } from "@/lib/actions";
+import { activateAccount } from "@/lib/actions";
 import { useRouter } from "next/navigation";
+import { useAuth, useFirestore } from "@/firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, writeBatch } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,12 +35,11 @@ const adminSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters long."),
 });
 
-function SubmitButton({ mode }: { mode: "admin" | "member" }) {
-  const { pending } = useFormStatus();
+function SubmitButton({ mode, isLoading }: { mode: "admin" | "member", isLoading: boolean }) {
   const text = mode === "admin" ? "Crear Equipo" : "Activar Cuenta";
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? <Loader2 className="animate-spin" /> : text}
+    <Button type="submit" className="w-full" disabled={isLoading}>
+      {isLoading ? <Loader2 className="animate-spin" /> : text}
     </Button>
   );
 }
@@ -47,13 +47,11 @@ function SubmitButton({ mode }: { mode: "admin" | "member" }) {
 export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
   const { toast } = useToast();
   const router = useRouter();
-  const isPendingUserFlow = mode === 'member';
-  const action = isPendingUserFlow ? activateAccount : createTeam;
+  const auth = useAuth();
+  const firestore = useFirestore();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [state, formAction] = useActionState(action, {
-    success: false,
-    message: "",
-  });
+  const isPendingUserFlow = mode === 'member';
 
   const form = useForm({
     resolver: zodResolver(isPendingUserFlow ? memberSchema : adminSchema),
@@ -62,24 +60,91 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
       : { name: "", email: "", password: "" },
   });
 
-  useEffect(() => {
-    if (state.message) {
+  const handleAdminSubmit = async (values: z.infer<typeof adminSchema>) => {
+    setIsLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+
+      const companyId = `COMP-${Date.now()}`;
+      const companyName = "AttendWise Company";
+
+      const batch = writeBatch(firestore);
+
+      const companyDocRef = doc(firestore, 'companies', companyId);
+      batch.set(companyDocRef, {
+        id: companyId,
+        name: companyName,
+        subscriptionPlan: 'Pro',
+        userLimit: 10,
+        recordLimit: 1000,
+        usedSlots: 1,
+      });
+
+      const userDocRef = doc(firestore, 'users', user.uid);
+      batch.set(userDocRef, {
+        id: user.uid,
+        companyId: companyId,
+        email: values.email,
+        name: values.name,
+        role: 'Global Admin',
+        status: 'active',
+      });
+
+      const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+      batch.set(adminRoleRef, { admin: true });
+
+      await batch.commit();
+
       toast({
-        title: state.success ? "Éxito!" : "Error",
-        description: state.message,
-        variant: state.success ? "default" : "destructive",
+        title: "Éxito!",
+        description: `Team '${companyName}' created successfully. You can now log in.`,
+      });
+      router.push('/login');
+
+    } catch (error: any) {
+      console.error("Error creating team:", error);
+      toast({
+        title: "Error",
+        description: error.code === 'auth/email-already-in-use' 
+          ? "This email is already in use. Please try another one."
+          : error.message || "An unexpected error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
+    setIsLoading(true);
+    // This is a simplified version. `activateAccount` server action would be needed here.
+    // For now, we are focusing on fixing the admin flow.
+    const formData = new FormData();
+    Object.entries(values).forEach(([key, value]) => {
+      formData.append(key, value);
+    });
+    const result = await activateAccount({success: false, message: ""}, formData);
+    
+    if (result.message) {
+      toast({
+        title: result.success ? "Éxito!" : "Error",
+        description: result.message,
+        variant: result.success ? "default" : "destructive",
       });
     }
-    if (state.success) {
+    if (result.success) {
       form.reset();
       router.push('/login');
     }
-  }, [state, form, toast, router]);
+    
+    setIsLoading(false);
+  };
 
   return (
     <Form {...form}>
       <form
-        action={formAction}
+        onSubmit={form.handleSubmit(mode === 'admin' ? handleAdminSubmit : handleMemberSubmit)}
         className="space-y-4"
       >
         {!isPendingUserFlow && (
@@ -138,7 +203,7 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
             </FormItem>
           )}
         />
-        <SubmitButton mode={mode} />
+        <SubmitButton mode={mode} isLoading={isLoading} />
       </form>
     </Form>
   );
