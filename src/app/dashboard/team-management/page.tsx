@@ -85,7 +85,7 @@ function PlanUsageCard({ company, users }: { company: any, users: any[] }) {
                     <div className="flex items-center gap-2 p-3 bg-accent/50 rounded-md">
                         <Users className="size-5 text-primary" />
                         <div>
-                            <p className="font-semibold">Usuarios Totales</p>
+                            <p className="font-semibold">Miembros Totales</p>
                             <p className="text-muted-foreground">{users.length}</p>
                         </div>
                     </div>
