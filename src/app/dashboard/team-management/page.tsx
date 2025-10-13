@@ -1,7 +1,4 @@
 
-
-
-
 'use client'
 
 import Header from "@/components/dashboard/header";
@@ -78,7 +75,12 @@ function PlanUsageCard({ company, users }: { company: any; users: User[] }) {
     ];
 
     const { roleDetails, totalMemberLimit, usedSlots } = useMemo(() => {
-        const companyRoleLimits = company?.roleLimits || {};
+        if (!company?.roleLimits) {
+            return { roleDetails: [], totalMemberLimit: 0, usedSlots: 0 };
+        }
+        
+        const companyRoleLimits = company.roleLimits;
+
         const roles = allPossibleRoles
             .map(roleInfo => {
                 const limit = companyRoleLimits[roleInfo.name] ?? 0;

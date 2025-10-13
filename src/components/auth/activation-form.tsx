@@ -74,7 +74,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
       const companyId = `COMP-${Date.now()}`;
       
-      const baseRoleLimits = {
+      const roleLimits = {
         'Global Admin': 0,
         'CEO': 0,
         'Operations Manager': 0,
@@ -83,17 +83,18 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       };
 
       if (plan === 'basic') {
-          baseRoleLimits['Global Admin'] = 1;
-          baseRolelimits['Employee'] = 50;
+          roleLimits['Global Admin'] = 1;
+          roleLimits['Employee'] = 50;
       } else if (plan === 'pro') {
-          baseRoleLimits['Global Admin'] = 1;
-          baseRoleLimits['Operations Manager'] = 1;
-          baseRoleLimits['Employee'] = 80;
+          roleLimits['Global Admin'] = 1;
+          roleLimits['Operations Manager'] = 1;
+          roleLimits['Employee'] = 80;
       } else if (plan === 'premium') {
-          baseRoleLimits['Global Admin'] = 1;
-          baseRoleLimits['CEO'] = 1;
-          baseRoleLimits['Operations Manager'] = 2;
-          baseRoleLimits['Employee'] = -1; // Unlimited
+          roleLimits['Global Admin'] = 1;
+          roleLimits['CEO'] = 1;
+          roleLimits['Operations Manager'] = 2;
+          roleLimits['Employee'] = -1; // Unlimited
+          roleLimits['Manager'] = -1; // Unlimited
       }
 
       const companyData = {
@@ -102,7 +103,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         subscriptionPlan: plan,
         usedSlots: 1,
         createdAt: serverTimestamp(),
-        roleLimits: baseRoleLimits,
+        roleLimits: roleLimits,
       };
 
       const userData = {
@@ -130,8 +131,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       await batch.commit();
 
       toast({
-        title: "Éxito!",
-        description: `Team created successfully. You can now log in.`,
+        title: "¡Éxito!",
+        description: `Equipo creado correctamente. Ahora puedes iniciar sesión.`,
       });
       router.push('/login');
 
