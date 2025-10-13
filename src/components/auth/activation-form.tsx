@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit } from "firebase/firestore";
+import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction, updateDoc } from "firebase/firestore";
 import { FirestorePermissionError } from "@/firebase/errors";
 import { errorEmitter } from "@/firebase/error-emitter";
 
@@ -165,47 +165,56 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
  const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
     try {
-      const pendingUserQuery = query(
-        collection(firestore, "users"),
-        where("email", "==", values.email),
-        where("companyId", "==", values.companyCode),
-        where("status", "==", "pending"),
-        limit(1)
-      );
-      const pendingUserSnapshot = await getDocs(pendingUserQuery);
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
 
-      if (pendingUserSnapshot.empty) {
-        toast({ title: "Error de Activación", description: "No se encontró una invitación pendiente para este correo electrónico y código de empresa.", variant: "destructive" });
-        setIsLoading(false);
-        return;
-      }
+        // Now that the user is created and signed in, we can perform the Firestore updates.
+        await runTransaction(firestore, async (transaction) => {
+            const pendingUserQuery = query(
+                collection(firestore, "users"),
+                where("email", "==", values.email),
+                where("companyId", "==", values.companyCode),
+                where("status", "==", "pending"),
+                limit(1)
+            );
+            
+            const pendingUserSnapshot = await getDocs(pendingUserQuery);
 
-      const pendingUserDoc = pendingUserSnapshot.docs[0];
-      
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
+            if (pendingUserSnapshot.empty) {
+                throw new Error("No se encontró una invitación pendiente para este correo electrónico y código de empresa.");
+            }
 
-      const companyRef = doc(firestore, "companies", values.companyCode);
-      const companySnap = await getDoc(companyRef);
-      if (!companySnap.exists()) {
-          throw new Error("La compañía asociada a esta invitación ya no existe.");
-      }
-      const companyData = companySnap.data();
+            const pendingUserDoc = pendingUserSnapshot.docs[0];
+            const pendingUserRef = pendingUserDoc.ref;
+            const pendingUserData = pendingUserDoc.data();
 
-      const batch = writeBatch(firestore);
-      const userDocRef = doc(firestore, "users", pendingUserDoc.id);
+            const companyRef = doc(firestore, "companies", values.companyCode);
+            const companySnap = await transaction.get(companyRef);
 
-      batch.update(userDocRef, { 
-        id: user.uid, 
-        status: 'active',
-        name: values.name, // Update the name from the form
-      });
-      batch.update(companyRef, { usedSlots: (companyData.usedSlots || 0) + 1 });
+            if (!companySnap.exists()) {
+                throw new Error("La compañía asociada a esta invitación ya no existe.");
+            }
+            
+            const companyData = companySnap.data();
 
-      await batch.commit();
+            // Create a new document with the user's UID
+            const newUserRef = doc(firestore, "users", user.uid);
+            transaction.set(newUserRef, {
+                ...pendingUserData,
+                id: user.uid, // Explicitly set the ID to the UID
+                status: 'active',
+                name: values.name,
+            });
 
-      toast({ title: "¡Éxito!", description: "Cuenta activada. Ahora puedes iniciar sesión." });
-      router.push('/login');
+            // Delete the old pending user document
+            transaction.delete(pendingUserRef);
+
+            // Update the company's used slots
+            transaction.update(companyRef, { usedSlots: (companyData.usedSlots || 0) + 1 });
+        });
+
+        toast({ title: "¡Éxito!", description: "Cuenta activada. Ahora puedes iniciar sesión." });
+        router.push('/login');
 
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
@@ -214,21 +223,11 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           title: "Correo electrónico en uso",
           description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
         });
-      } else if (error.code && error.code.includes('permission-denied')) {
-        const permissionError = new FirestorePermissionError({
-            path: `BATCH WRITE to users and companies`,
-            operation: 'update',
-            requestResourceData: { 
-                "Note": "This was a batch write to activate a user.",
-                "/users/{pendingUserId}": { status: 'active', name: values.name },
-                "/companies/{companyId}": { usedSlots: 'increment' }
-            }
-        });
-        errorEmitter.emit('permission-error', permissionError);
       } else {
+        // This will catch transaction failures or other errors.
         toast({
-            title: "Error",
-            description: error.message || "Ocurrió un error inesperado.",
+            title: "Error de Activación",
+            description: error.message || "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.",
             variant: "destructive",
         });
       }
@@ -236,6 +235,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         setIsLoading(false);
     }
   };
+
 
   return (
     <Form {...form}>
