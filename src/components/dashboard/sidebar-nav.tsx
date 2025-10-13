@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, Settings, LogOut, Timer, ClipboardCheck, History, CalendarDays, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Timer, ClipboardCheck, History, CalendarDays, TrendingUp, ClipboardList } from 'lucide-react';
 import {
   SidebarHeader,
   SidebarContent,
@@ -73,6 +73,18 @@ export function SidebarNav({ companyName }: { companyName: string }) {
                   <span>Indicadores Gerente Op.</span>
               </Link>
               </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={isActive('/dashboard/registro')}
+              tooltip="Registro"
+            >
+              <Link href={`/dashboard/registro`}>
+                <ClipboardList />
+                <span>Registro</span>
+              </Link>
+            </SidebarMenuButton>
           </SidebarMenuItem>
            <SidebarMenuItem>
             <SidebarMenuButton
