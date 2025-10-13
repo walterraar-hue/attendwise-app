@@ -18,6 +18,7 @@ const plans = [
             'Soporte remoto estándar',
             'Actualizaciones automáticas',
             'Hasta 50 empleados activos',
+            '1 Admin Global'
         ],
         isPro: false,
     },
@@ -35,6 +36,7 @@ const plans = [
             'Dashboard interactivo con indicadores clave',
             'Soporte prioritario y mantenimiento mensual',
             'Hasta 80 empleados activos',
+            '1 Admin Global y 1 Admin de Operaciones',
         ],
         isPro: true,
     },
@@ -52,6 +54,7 @@ const plans = [
             'Resúmenes y recomendaciones automáticas',
             'Soporte premium y mantenimiento total',
             'Backups automáticos',
+            '1 Admin Global, 2 Admin de Operaciones y 1 CEO',
         ],
         isPro: false,
     }
