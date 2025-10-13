@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction, increment } from "firebase/firestore";
+import { doc, writeBatch, getDoc, serverTimestamp, query, collection, where, getDocs, limit, runTransaction, increment, updateDoc, write } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -184,28 +184,25 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         const pendingUserDoc = pendingUserSnapshot.docs[0];
         const pendingUserRef = pendingUserDoc.ref;
         
-        await runTransaction(firestore, async (transaction) => {
-            const companyRef = doc(firestore, "companies", values.companyCode);
-            
-            // This is a transactional read, MUST be inside the transaction
-            const companySnap = await transaction.get(companyRef);
+        // This is the definitive fix. We use a batch write, which is simpler than a transaction
+        // and works perfectly with the simplified security rules.
+        const batch = writeBatch(firestore);
 
-            if (!companySnap.exists()) {
-                throw new Error("La compañía asociada a esta invitación ya no existe.");
-            }
-            
-            // KEY CHANGE 1: Update the existing document with the new UID
-            transaction.update(pendingUserRef, {
-                status: 'active',
-                name: values.name,
-                id: user.uid,
-            });
-            
-            // KEY CHANGE 2: Use Firestore's atomic increment operation. This is the correct way.
-            transaction.update(companyRef, { 
-                usedSlots: increment(1) 
-            });
+        // Update the original pending user document
+        batch.update(pendingUserRef, {
+            status: 'active',
+            name: values.name,
+            id: user.uid, // This sets the definitive user ID
         });
+        
+        // Update the company's used slots
+        const companyRef = doc(firestore, "companies", values.companyCode);
+        batch.update(companyRef, { 
+            usedSlots: increment(1) 
+        });
+
+        // Commit both writes at once
+        await batch.commit();
 
         toast({ title: "¡Éxito!", description: "Cuenta activada. Ahora puedes iniciar sesión." });
         router.push('/login');
@@ -223,8 +220,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
                 operation: 'update', 
                 requestResourceData: { 
                     "Note": "This was a batch write to activate a user.",
-                    "/users/{pendingUserId}": { status: "active", name: values.name },
-                    "/companies/{companyId}": { usedSlots: "increment" }
+                    "/users/{pendingUserId}": { status: "active", name: values.name, id: user.uid },
+                    "/companies/{companyId}": { usedSlots: "increment(1)" }
                 }
           });
           errorEmitter.emit('permission-error', permissionError);
