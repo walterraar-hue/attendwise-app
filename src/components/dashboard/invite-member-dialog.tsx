@@ -77,10 +77,10 @@ export function InviteMemberDialog({ company }: { company: { roleLimits?: Record
           <DialogTitle>Invitar a un nuevo miembro</DialogTitle>
           <DialogDescription>
             Introduce los detalles a continuación para enviar una invitación. Se les pedirá que configuren su cuenta.
-            <div className="text-sm font-medium mt-2">
-              Uso: {company.usedSlots} / {memberLimit === Infinity ? 'Ilimitados' : memberLimit} miembros
-            </div>
           </DialogDescription>
+          <div className="text-sm font-medium mt-2">
+            Uso: {company.usedSlots} / {memberLimit === Infinity ? 'Ilimitados' : memberLimit} miembros
+          </div>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
