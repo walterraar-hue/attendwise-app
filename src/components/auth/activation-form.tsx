@@ -164,10 +164,13 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
  const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
+
     try {
+        // Step 1: Create the user in Firebase Auth
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
+        // Step 2: Find the pending user document using their email
         const pendingUserQuery = query(
             collection(firestore, "users"),
             where("email", "==", values.email),
@@ -180,29 +183,47 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         if (pendingUserSnapshot.empty) {
             throw new Error("No se encontró una invitación pendiente para este correo electrónico y código de empresa.");
         }
-
-        const pendingUserDoc = pendingUserSnapshot.docs[0];
-        const pendingUserRef = pendingUserDoc.ref;
         
+        const pendingUserDoc = pendingUserSnapshot.docs[0];
+        // This is a new document reference with the user's actual UID
+        const newUserDocRef = doc(firestore, 'users', user.uid);
+        const companyRef = doc(firestore, 'companies', values.companyCode);
+
+        // Step 3: Use a batch to atomically delete the pending doc and create the new one
         const batch = writeBatch(firestore);
 
-        batch.update(pendingUserRef, {
+        // Create the new user document with the correct UID
+        batch.set(newUserDocRef, {
+            ...pendingUserDoc.data(), // copy role, companyId etc. from invitation
             status: 'active',
             name: values.name,
-            id: user.uid,
+            id: user.uid, // explicitly set the id
+            email: values.email, // ensure email is set
         });
+
+        // Delete the original pending document
+        batch.delete(pendingUserDoc.ref);
         
-        const companyRef = doc(firestore, "companies", values.companyCode);
+        // Update the company's used slots
         batch.update(companyRef, { 
             usedSlots: increment(1) 
         });
-
+        
+        // Commit all operations atomically
         await batch.commit();
 
         toast({ title: "¡Éxito!", description: "Cuenta activada. Ahora puedes iniciar sesión." });
         router.push('/login');
 
     } catch (error: any) {
+        // Clean up created auth user if firestore operations fail
+        if (auth.currentUser) {
+            try {
+                await auth.currentUser.delete();
+            } catch (deleteError) {
+                console.error("Failed to clean up newly created auth user:", deleteError);
+            }
+        }
         if (error.code === 'auth/email-already-in-use') {
             toast({
               variant: "destructive",
@@ -298,3 +319,4 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
+

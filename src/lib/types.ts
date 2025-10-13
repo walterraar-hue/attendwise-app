@@ -5,7 +5,7 @@ export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager'
 export type UserStatus = 'active' | 'pending' | 'inactive';
 
 export interface User {
-  id: string; // User's UID from Firebase Auth
+  id?: string; // User's UID from Firebase Auth - now optional
   name: string;
   email: string;
   role: UserRole;
