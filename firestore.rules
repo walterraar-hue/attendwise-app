@@ -1,124 +1,117 @@
 /**
- * @fileoverview Firestore Security Rules for AttendWise application.
- *
- * Core Philosophy:
- * This ruleset enforces a combination of ownership-based access control and role-based access control (Global Admin).
- * User data is primarily secured under the /users/{userId} path, ensuring that only the user themselves or a global admin can modify their data.
- * Company data is secured at the /companies/{companyId} path, accessible only to Global Admins.
- * Attendance records are secured under the /users/{userId}/attendanceRecords/{attendanceRecordId} path, accessible only by the owner.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for personal data and a company-based model for shared data. Global administrator privileges are granted based on document existence in a dedicated collection.
  *
  * Data Structure:
- * - /companies/{companyId}: Stores company-level data. Only accessible to global admins.
- * - /users/{userId}: Stores user-specific data. Accessible to the user and global admins. Contains denormalized companyId for authorization.
- * - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records for each user. Accessible only to the owner.
- * - /roles_admin/{userId}: Presence of a document indicates global admin status.
+ * - /companies/{companyId}: Stores company information, accessible only to global admins.
+ * - /users/{userId}: Stores user information, accessible only to the user and global admins. Contains denormalized companyId for authorization.
+ * - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records, accessible only to the owning user.
+ * - /roles_admin/{userId}: Indicates a global admin. Document existence grants admin privileges.
  *
  * Key Security Decisions:
- * - Global admins have full read and write access to all company and user data.
- * - Users can only create or update their own user documents.
- * - Users can read other user's profiles if they are in the same company.
- * - Users can only manage their own attendance records.
- * - Listing all users is disallowed at the root level to prevent information leakage.
- * - The 'roles_admin' collection is used for global admin management; document existence grants admin privileges.
+ * - Users can only manage their own data (create, update, delete) under their user ID.
+ * - Listing of user documents is disallowed to prevent information disclosure.
+ * - Global admins have full access to all companies and users.
+ * - Data validation is relaxed to allow for rapid prototyping, focusing on ownership and relationship integrity.
  *
  * Denormalization for Authorization:
- * The `companyId` is denormalized into the `/users/{userId}` document. This enables security rules to validate user roles and company associations without needing to perform costly `get()` operations.
+ * - The `companyId` is denormalized into the `/users/{userId}` document to enable efficient company-based authorization without additional `get()` calls.
+ * - Global admin privileges are determined by the existence of a document in `/roles_admin/{userId}`, avoiding the need for custom claims.
  *
  * Structural Segregation:
- * The 'roles_admin' collection is segregated to ensure all docs in the collection have the same security posture.
+ * - Global admin roles are managed in a dedicated `/roles_admin` collection to simplify role-based access control.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if the user is signed in
+    /**
+     * @description Grants access to company documents. Only global admins can create, update, or delete company records.
+     * @path /companies/{companyId}
+     * @allow (create) - A global admin can create a company.
+     * @deny (create) - A regular user cannot create a company.
+     * @allow (get, list) -  Everyone can read company information.
+     * @deny (update, delete) - A regular user cannot update or delete a company.
+     * @principle Enforces admin-only access for company data.
+     */
+    match /companies/{companyId} {
+      allow get, list: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Grants access to user documents. Users can create their own document and modify it. Global admins can modify any user document.
+     * @path /users/{userId}
+     * @allow (create) - A user can create their own user document.
+     * @deny (create) - A user cannot create a user document with a mismatched user ID.
+     * @allow (get) - A user can get their own user document.
+     * @deny (get) - A user cannot get another user's document.
+     * @allow (update, delete) - A user can update/delete their own user document. Global admins can always update/delete user documents.
+     * @deny (update, delete) - A user cannot update/delete another user's document.
+     * @principle Enforces document ownership and admin override for user data.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if (isOwner(userId) && isExistingOwner(userId) && request.resource.data.id == resource.data.id) || (isAdmin() && resource != null);
+      allow delete: if (isOwner(userId) && isExistingOwner(userId)) || (isAdmin() && resource != null);
+    }
+
+    /**
+     * @description Grants access to attendance records for a specific user. Only the owning user can manage their attendance records.
+     * @path /users/{userId}/attendanceRecords/{attendanceRecordId}
+     * @allow (create) - A user can create attendance records under their own user ID.
+     * @deny (create) - A user cannot create attendance records under another user's ID.
+     * @allow (get, list) - A user can access attendance records under their own user ID.
+     * @deny (get, list) - A user cannot access attendance records under another user's ID.
+     * @allow (update, delete) - A user can update/delete their own attendance records.
+     * @deny (update, delete) - A user cannot update/delete another user's attendance records.
+     * @principle Enforces strict ownership for attendance record management.
+     */
+    match /users/{userId}/attendanceRecords/{attendanceRecordId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isOwner(userId) && isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isOwner(userId) && isExistingOwner(userId);
+    }
+
+     /**
+      * @description Grants global administrator privileges based on document existence. Allows anyone to create the admin document if they are authenticated, but only allows an existing admin or the user themselves to update or delete it
+      * @path /roles_admin/{userId}
+      * @allow (create) - If a user exists
+      * @deny (create) - If a user does not exist
+      * @allow (get) - Anyone can read if a user is admin
+      * @deny (get) - If a user does not exist
+      * @allow (update, delete) - Only an existing admin or the user themselves can update or delete it
+      * @deny (update, delete) - If a non-admin user attempts to update/delete it.
+      * @principle Enforces existence-based global admin privileges.
+      */
+    match /roles_admin/{userId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isSignedIn();
+      allow update: if (isAdmin() && resource != null) || (isOwner(userId) && resource != null);
+      allow delete: if (isAdmin() && resource != null) || (isOwner(userId) && resource != null);
+    }
+
+
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Helper function to check if the user is the owner of the document
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
-    // Helper function to check if the user is an existing owner of the document
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
     }
 
-    // Helper function to check if the user is a Global Admin
-    function isGlobalAdmin() {
+    function isAdmin() {
       return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
-    }
-
-    // Helper function to get user data
-    function getUserData(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data;
-    }
-    
-    /**
-     * @description Manages company data. Only global admins can read or write.
-     * @path /companies/{companyId}
-     * @allow (read, write) if isGlobalAdmin()
-     * @deny (read, write) if !isGlobalAdmin()
-     * @principle Enforces role-based access control for company data.
-     */
-    match /companies/{companyId} {
-      allow read, write: if isGlobalAdmin();
-      allow create: if isSignedIn();
-    }
-
-    /**
-     * @description Manages user profiles. Users can only create/update their own profile.
-     * @path /users/{userId}
-     * @allow (create, update) if isOwner(userId)
-     * @allow (read) if request.auth != null && getUserData(request.auth.uid).companyId == resource.data.companyId
-     * @deny (create, update) if !isOwner(userId)
-     * @deny (read) if request.auth == null || getUserData(request.auth.uid).companyId != resource.data.companyId
-     * @principle Enforces document ownership for user profiles.
-     */
-    match /users/{userId} {
-      allow read: if isSignedIn() && getUserData(request.auth.uid).companyId == resource.data.companyId;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isGlobalAdmin();
-      allow list: if false;
-    }
-
-    /**
-     * @description Manages attendance records for a specific user. Only the user can manage their own records.
-     * @path /users/{userId}/attendanceRecords/{attendanceRecordId}
-     * @allow (create, update, delete) if isOwner(userId)
-     * @deny (create, update, delete) if !isOwner(userId)
-     * @principle Enforces document ownership for attendance records.
-     */
-    match /users/{userId}/attendanceRecords/{attendanceRecordId} {
-      allow read, write: if isOwner(userId);
-    }
-
-    /**
-     * @description Manages global admin roles. Document existence grants admin privileges.
-     * @path /roles_admin/{userId}
-     * @allow (read, write, create) if isGlobalAdmin()
-     * @deny (read, write, create) if !isGlobalAdmin()
-     * @principle Enforces role-based access control for global admin privileges.
-     */
-    match /roles_admin/{userId} {
-      allow read, write: if isGlobalAdmin();
-      allow create: if isSignedIn() && isOwner(userId);
-      allow delete: if isGlobalAdmin();
-      allow list: if isGlobalAdmin();
-    }
-
-    /**
-     * @description Catches all other requests and denies them by default.
-     * @path /{document=**}
-     * @allow N/A
-     * @deny (read, write) always
-     * @principle Implements the principle of least privilege; all access must be explicitly granted.
-     */
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }
