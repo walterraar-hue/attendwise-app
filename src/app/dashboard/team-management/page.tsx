@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Users, Star, Server, User, Crown } from "lucide-react";
+import { Copy, Users, Star, User, Crown } from "lucide-react";
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { collection, query, where, doc } from "firebase/firestore";
@@ -61,21 +61,32 @@ function PlanUsageCard({ company, users }: { company: any, users: UserType[] }) 
     const roleLimits = company?.roleLimits;
 
     const roleCounts = useMemo(() => {
-        return users.reduce((acc, user) => {
-            if (user.role === 'Manager' || user.role === 'Employee') {
-                acc['Member'] = (acc['Member'] || 0) + 1;
-            } else {
-                acc[user.role] = (acc[user.role] || 0) + 1;
+        const counts: Record<string, number> = {
+            'Global Admin': 0,
+            'CEO': 0,
+            'Operations Manager': 0,
+            'Manager': 0,
+            'Employee': 0,
+        };
+        users.forEach(user => {
+            if (counts.hasOwnProperty(user.role)) {
+                counts[user.role]++;
             }
-            return acc;
-        }, {} as Record<UserRole | 'Member', number>);
+        });
+        const memberCount = (counts['Manager'] || 0) + (counts['Employee'] || 0);
+        return {
+            'Global Admin': counts['Global Admin'],
+            'CEO': counts['CEO'],
+            'Operations Manager': counts['Operations Manager'],
+            'Member': memberCount,
+        };
     }, [users]);
     
     const roleDetails: { name: string, limit: number, used: number, icon: React.ReactNode }[] = [
-        { name: 'Global Admin', limit: roleLimits?.['Global Admin'], used: roleCounts['Global Admin'] || 0, icon: <User className="size-5 text-red-500" /> },
-        { name: 'CEO', limit: roleLimits?.['CEO'], used: roleCounts['CEO'] || 0, icon: <Crown className="size-5 text-yellow-500" /> },
-        { name: 'Operations Manager', limit: roleLimits?.['Operations Manager'], used: roleCounts['Operations Manager'] || 0, icon: <Star className="size-5 text-blue-500" /> },
-        { name: 'Member', limit: roleLimits?.['Member'], used: roleCounts['Member'] || 0, icon: <Users className="size-5 text-green-500" /> },
+        { name: 'Global Admin', limit: roleLimits?.['Global Admin'], used: roleCounts['Global Admin'], icon: <User className="size-5 text-red-500" /> },
+        { name: 'CEO', limit: roleLimits?.['CEO'], used: roleCounts['CEO'], icon: <Crown className="size-5 text-yellow-500" /> },
+        { name: 'Operations Manager', limit: roleLimits?.['Operations Manager'], used: roleCounts['Operations Manager'], icon: <Star className="size-5 text-blue-500" /> },
+        { name: 'Member', limit: roleLimits?.['Member'], used: roleCounts['Member'], icon: <Users className="size-5 text-green-500" /> },
     ].filter(role => role.limit !== 0 && role.limit !== undefined);
 
 
