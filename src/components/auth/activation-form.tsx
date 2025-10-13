@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { activateAccount, createTeam } from "@/lib/actions";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +29,7 @@ const memberSchema = z.object({
 });
 
 const adminSchema = z.object({
+  name: z.string().min(2, "Please enter your full name."),
   email: z.string().email("Please enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters long."),
 });
@@ -43,7 +45,8 @@ function SubmitButton({ mode }: { mode: "admin" | "member" }) {
 }
 
 export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
-  const { toast } = useToast()
+  const { toast } = useToast();
+  const router = useRouter();
   const isPendingUserFlow = mode === 'member';
   const action = isPendingUserFlow ? activateAccount : createTeam;
 
@@ -56,7 +59,7 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
     resolver: zodResolver(isPendingUserFlow ? memberSchema : adminSchema),
     defaultValues: isPendingUserFlow
       ? { email: "", companyCode: "", password: "" }
-      : { email: "", password: "" },
+      : { name: "", email: "", password: "" },
   });
 
   useEffect(() => {
@@ -69,13 +72,37 @@ export function ActivationForm({ mode }: { mode: "admin" | "member" }) {
     }
     if (state.success) {
       form.reset();
-      // TODO: Redirect to login or dashboard
+      router.push('/login');
     }
-  }, [state, form, toast]);
+  }, [state, form, toast, router]);
 
   return (
     <Form {...form}>
-      <form action={formAction} className="space-y-4">
+      <form
+        onSubmit={form.handleSubmit((data) => {
+          const formData = new FormData();
+          Object.entries(data).forEach(([key, value]) => {
+            formData.append(key, value as string);
+          });
+          formAction(formData);
+        })}
+        className="space-y-4"
+      >
+        {!isPendingUserFlow && (
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre Completo</FormLabel>
+                <FormControl>
+                  <Input placeholder="John Doe" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
         <FormField
           control={form.control}
           name="email"
