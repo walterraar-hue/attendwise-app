@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, addDoc, collection, increment, updateDoc, query, where, getDocs } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, setDoc, collection, increment } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -165,17 +165,26 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     setIsLoading(true);
     try {
       // Step 1: Create the user in Firebase Auth.
-      await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
 
-      // Step 2: Create a 'pending' user document in Firestore.
-      // This document will be claimed upon first login.
-      await addDoc(collection(firestore, "users"), {
+      // Step 2: Create a 'pending' user document in Firestore using the user's UID as the document ID.
+      const userDocRef = doc(firestore, "users", user.uid);
+      
+      await setDoc(userDocRef, {
+          id: user.uid,
           companyId: values.companyCode,
           name: values.name,
           email: values.email,
-          role: "Miembro", // Default role, can be changed by admin
+          role: "Miembro", // Default role
           status: "pending"
       });
+
+      // Step 3: Increment the company's used slots.
+      const companyRef = doc(firestore, 'companies', values.companyCode);
+      await setDoc(companyRef, {
+          usedSlots: increment(1)
+      }, { merge: true });
 
       toast({
         title: "¡Cuenta Creada!",
@@ -192,11 +201,11 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         });
       } else if (error.code && error.code.includes('permission-denied')) {
            const permissionError = new FirestorePermissionError({
-                path: `addDoc to /users`,
+                path: `setDoc to /users/${'new-user-uid'}`,
                 operation: 'create', 
                 requestResourceData: { 
                     "Note": "This was an attempt to create a pending user document after a successful Auth creation.",
-                    "/users/{newPendingUserId}": { name: values.name, email: values.email, role: "Miembro", status: "pending", companyId: values.companyCode },
+                    "user data": { name: values.name, email: values.email, role: "Miembro", status: "pending", companyId: values.companyCode },
                 }
           });
           errorEmitter.emit('permission-error', permissionError);

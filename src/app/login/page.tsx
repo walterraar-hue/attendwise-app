@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import Link from 'next/link';
@@ -16,7 +17,7 @@ import { useAuth, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword, User } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, updateDoc, doc, increment, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, setDoc } from 'firebase/firestore';
 
 
 const loginSchema = z.object({
@@ -27,43 +28,20 @@ const loginSchema = z.object({
 // This function will handle the activation logic after a successful login.
 const activatePendingUser = async (user: User, firestore: any): Promise<boolean> => {
     // Query for a pending user document with the matching email
-    const pendingUserQuery = query(
-        collection(firestore, "users"),
-        where("email", "==", user.email),
-        where("status", "==", "pending")
-    );
-
-    const querySnapshot = await getDocs(pendingUserQuery);
-
-    if (querySnapshot.empty) {
-        // Not a pending user, or already activated. Nothing to do.
-        return false; 
-    }
-
-    const pendingUserDoc = querySnapshot.docs[0];
-    const companyId = pendingUserDoc.data().companyId;
-    
-    // --- Start of the fix: Use sequential writes instead of a batch ---
+    const userDocRef = doc(firestore, "users", user.uid);
 
     try {
-        // 1. Update the user document first
-        await updateDoc(pendingUserDoc.ref, { 
+        await updateDoc(userDocRef, { 
             status: 'active',
-            id: user.uid // This is the crucial step: associate the doc with the auth UID
-        });
-
-        // 2. Then, update the company's used slots
-        const companyRef = doc(firestore, 'companies', companyId);
-        await updateDoc(companyRef, {
-            usedSlots: increment(1)
         });
         
         return true;
 
     } catch (error) {
-        console.error("Permission error during user activation:", error);
-        // We throw the error so it can be caught by the calling function.
-        throw error;
+        // If the user document doesn't exist, or there's a permission error, we catch it.
+        console.error("Could not activate user:", error);
+        // We don't re-throw, as it might not be a critical failure for the login itself.
+        return false; 
     }
 };
 
@@ -87,18 +65,7 @@ export default function LoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       
-      let wasActivated = false;
-      try {
-        wasActivated = await activatePendingUser(user, firestore);
-      } catch (activationError) {
-        console.warn("User activation failed. The user's status might still be pending.", activationError);
-        toast({
-            variant: "destructive",
-            title: "Fallo en la Activación de Cuenta",
-            description: "Has iniciado sesión, pero no pudimos activar tu cuenta. Contacta a tu administrador.",
-        });
-        // We still allow the user to proceed to the dashboard.
-      }
+      const wasActivated = await activatePendingUser(user, firestore);
 
 
       if (wasActivated) {
