@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, VideoOff } from 'lucide-react';
+import { Camera, VideoOff, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
@@ -27,50 +27,76 @@ export default function RegisterAttendancePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const [step, setStep] = useState(1);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
-  useEffect(() => {
-    const getCameraPermission = async () => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('Camera API not supported');
-        setHasCameraPermission(false);
+  // Form state
+  const [appointmentTime, setAppointmentTime] = useState('');
+  const [workCenter, setWorkCenter] = useState('');
+
+  const handleNextStep = () => {
+    if (!appointmentTime || !workCenter) {
         toast({
             variant: "destructive",
-            title: "Cámara no Soportada",
-            description: "Tu navegador no soporta el acceso a la cámara.",
+            title: "Campos Incompletos",
+            description: "Por favor, completa la hora y el centro de trabajo.",
         });
         return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        setStream(stream);
-        setHasCameraPermission(true);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Acceso a Cámara Denegado',
-          description: 'Por favor, habilita los permisos de cámara en tu navegador.',
-        });
-      }
-    };
+    }
+    setStep(2);
+  }
 
-    getCameraPermission();
+  useEffect(() => {
+    // Only request camera when we move to step 2
+    if (step === 2) {
+        const getCameraPermission = async () => {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error('Camera API not supported');
+            setHasCameraPermission(false);
+            toast({
+                variant: "destructive",
+                title: "Cámara no Soportada",
+                description: "Tu navegador no soporta el acceso a la cámara.",
+            });
+            return;
+          }
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            setStream(stream);
+            setHasCameraPermission(true);
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+            }
+          } catch (error) {
+            console.error('Error accessing camera:', error);
+            setHasCameraPermission(false);
+            toast({
+              variant: 'destructive',
+              title: 'Acceso a Cámara Denegado',
+              description: 'Por favor, habilita los permisos de cámara en tu navegador.',
+            });
+          }
+        };
+
+        getCameraPermission();
+    } else {
+        // Cleanup: stop the camera stream if we go back to step 1
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+            setStream(null);
+        }
+    }
 
     return () => {
-      // Cleanup: stop the camera stream when the component unmounts
+      // General cleanup when the component unmounts
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [step]);
 
   const handleCapture = () => {
     if (videoRef.current && canvasRef.current) {
@@ -91,32 +117,22 @@ export default function RegisterAttendancePage() {
   };
   
   const handleRetake = () => {
-     const getCameraPermission = async () => {
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        setStream(newStream);
-        setHasCameraPermission(true);
-        if (videoRef.current) {
-          videoRef.current.srcObject = newStream;
-        }
-        setCapturedImage(null);
-      } catch (error) {
-         toast({
-          variant: 'destructive',
-          title: 'Error de Cámara',
-          description: 'No se pudo reactivar la cámara.',
-        });
-      }
-     }
-     getCameraPermission();
+     setCapturedImage(null); // This will re-trigger the useEffect for step 2
+     setStep(2);
   };
 
   const handleSubmit = () => {
-    // Here you would handle the submission of the data, including the capturedImage
+    // Here you would handle the submission of the data,
+    // including appointmentTime, workCenter, and capturedImage
     toast({
       title: '¡Registro Enviado!',
       description: 'Tu asistencia ha sido registrada correctamente.',
     });
+    // Reset state after submission
+    setStep(1);
+    setAppointmentTime('');
+    setWorkCenter('');
+    setCapturedImage(null);
   };
 
   return (
@@ -126,85 +142,97 @@ export default function RegisterAttendancePage() {
         <Card>
           <CardHeader>
             <CardTitle>Registro de Ingreso</CardTitle>
-            <CardDescription>Completa los detalles de tu cita y verifica tu asistencia con una foto.</CardDescription>
+            <CardDescription>
+                {step === 1 
+                ? "Completa los detalles de tu cita para continuar." 
+                : "Verifica tu asistencia con una foto en las instalaciones."}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="appointment-time">Hora de la Cita</Label>
-                <Input id="appointment-time" type="time" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="work-center">Centro de Trabajo</Label>
-                <Select>
-                  <SelectTrigger id="work-center">
-                    <SelectValue placeholder="Selecciona un centro" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {workCenters.map(center => (
-                      <SelectItem key={center.id} value={center.id}>{center.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-4">
-                <Label>Verificación por Foto</Label>
-                <div className="aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                  {hasCameraPermission === null && <p>Cargando cámara...</p>}
-                  {hasCameraPermission === false && (
-                    <div className="text-center text-destructive p-4">
-                      <VideoOff className="mx-auto h-12 w-12" />
-                      <p className="mt-2 font-semibold">Cámara no disponible</p>
-                      <p className="text-sm">Revisa los permisos de tu navegador.</p>
+            {step === 1 && (
+                <div className="space-y-6">
+                    <div className="space-y-2">
+                        <Label htmlFor="appointment-time">Hora de la Cita</Label>
+                        <Input id="appointment-time" type="time" value={appointmentTime} onChange={e => setAppointmentTime(e.target.value)} />
                     </div>
-                  )}
-                  
-                  {hasCameraPermission && (
-                    <div className="relative w-full h-full">
-                      {capturedImage ? (
-                        <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
-                      ) : (
-                        <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
-                      )}
+                    <div className="space-y-2">
+                        <Label htmlFor="work-center">Centro de Trabajo</Label>
+                        <Select value={workCenter} onValueChange={setWorkCenter}>
+                        <SelectTrigger id="work-center">
+                            <SelectValue placeholder="Selecciona un centro" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {workCenters.map(center => (
+                            <SelectItem key={center.id} value={center.id}>{center.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
                     </div>
-                  )}
-                  <canvas ref={canvasRef} className="hidden"></canvas>
+                    <Button className="w-full" onClick={handleNextStep}>Siguiente</Button>
                 </div>
+            )}
 
-                {hasCameraPermission === false && (
-                     <Alert variant="destructive" className="mt-4">
-                      <AlertTitle>Acceso a Cámara Requerido</AlertTitle>
-                      <AlertDescription>
-                        Por favor, permite el acceso a la cámara en la configuración de tu navegador para poder registrar tu asistencia.
-                      </AlertDescription>
-                    </Alert>
-                )}
+            {step === 2 && (
+                <div className="space-y-4">
+                    <div className="aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                    {hasCameraPermission === null && <p>Cargando cámara...</p>}
+                    {hasCameraPermission === false && (
+                        <div className="text-center text-destructive p-4">
+                        <VideoOff className="mx-auto h-12 w-12" />
+                        <p className="mt-2 font-semibold">Cámara no disponible</p>
+                        <p className="text-sm">Revisa los permisos de tu navegador.</p>
+                        </div>
+                    )}
+                    
+                    {hasCameraPermission && (
+                        <div className="relative w-full h-full">
+                        {capturedImage ? (
+                            <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
+                        ) : (
+                            <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
+                        )}
+                        </div>
+                    )}
+                    <canvas ref={canvasRef} className="hidden"></canvas>
+                    </div>
 
-                <div className="flex justify-center gap-4">
-                    {hasCameraPermission && !capturedImage && (
-                        <Button onClick={handleCapture}>
-                            <Camera className="mr-2 h-4 w-4" />
-                            Tomar Foto
-                        </Button>
+                    {hasCameraPermission === false && (
+                        <Alert variant="destructive" className="mt-4">
+                        <AlertTitle>Acceso a Cámara Requerido</AlertTitle>
+                        <AlertDescription>
+                            Por favor, permite el acceso a la cámara para registrar tu asistencia.
+                        </AlertDescription>
+                        </Alert>
                     )}
-                    {capturedImage && (
-                        <Button onClick={handleRetake} variant="outline">
-                            Tomar de Nuevo
+
+                    <div className="flex justify-center gap-4">
+                        {hasCameraPermission && !capturedImage && (
+                            <Button onClick={handleCapture}>
+                                <Camera className="mr-2 h-4 w-4" />
+                                Tomar Foto
+                            </Button>
+                        )}
+                        {capturedImage && (
+                            <Button onClick={handleRetake} variant="outline">
+                                Tomar de Nuevo
+                            </Button>
+                        )}
+                    </div>
+                    
+                    <Separator />
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <Button variant="outline" className="w-full" onClick={() => setStep(1)}>
+                            <ArrowLeft className="mr-2 h-4 w-4" />
+                            Volver
                         </Button>
-                    )}
+                        <Button className="w-full" onClick={handleSubmit} disabled={!capturedImage}>
+                            Notificar Ingreso y Enviar
+                        </Button>
+                    </div>
                 </div>
-            </div>
-
-            <Separator />
-
-            <Button className="w-full" onClick={handleSubmit} disabled={!capturedImage}>
-              Notificar Ingreso y Enviar
-            </Button>
+            )}
             
           </CardContent>
         </Card>
@@ -212,3 +240,4 @@ export default function RegisterAttendancePage() {
     </div>
   );
 }
+
