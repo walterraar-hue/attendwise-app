@@ -236,16 +236,20 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between space-y-2">
         <Header title="Configuración" />
       </div>
-      <div className="max-w-4xl mx-auto">
-        {companyId ? (
-          <>
-            <WorkCenterForm companyId={companyId} />
-            <WorkCentersList workCenters={workCenters} companyId={companyId} isLoading={isLoadingWorkCenters} />
-          </>
-        ) : (
-          <p>Cargando información de la compañía...</p>
-        )}
+      <div className="flex justify-center">
+        <div className="w-full max-w-4xl">
+          {companyId ? (
+            <>
+              <WorkCenterForm companyId={companyId} />
+              <WorkCentersList workCenters={workCenters} companyId={companyId} isLoading={isLoadingWorkCenters} />
+            </>
+          ) : (
+            <p>Cargando información de la compañía...</p>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+
+    
