@@ -33,17 +33,30 @@ export interface Company {
 export interface AttendanceRecord {
   id: string;
   userId: string;
-  timestamp: any; // Firestore Timestamp
-  type: 'check-in' | 'check-out';
+  
+  // Check-in details
+  checkInTimestamp: any; // Firestore Timestamp
+  appointmentTime: string;
   workCenterId: string;
-  location: {
+  checkInLocation: {
     latitude: number;
     longitude: number;
     accuracy: number;
   };
-  imageUrl: string;
-  aiAnalysis: string | null;
-  appointmentTime: string;
+  checkInImageUrl: string;
+  aiPunctualityAnalysis: string | null;
+
+  // Check-out details (optional)
+  checkOutTimestamp?: any; // Firestore Timestamp
+  checkOutLocation?: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+  };
+  checkOutImageUrl?: string;
+  
+  // Status of the record
+  status: 'open' | 'closed';
 }
 
 

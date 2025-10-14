@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Company": {
@@ -80,7 +81,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "AttendanceRecord",
       "type": "object",
-      "description": "Represents an attendance record for a user.",
+      "description": "Represents a single, complete attendance session for a user, including check-in and check-out.",
       "properties": {
         "id": {
           "type": "string",
@@ -88,48 +89,73 @@
         },
         "userId": {
           "type": "string",
-          "description": "Reference to the User this record belongs to. (Relationship: User 1:N AttendanceRecord)"
+          "description": "Reference to the User this record belongs to."
         },
-        "timestamp": {
+        "status": {
           "type": "string",
-          "description": "Timestamp of the attendance event.",
-          "format": "date-time"
-        },
-        "type": {
-          "type": "string",
-          "description": "Type of attendance event (e.g., Check-in, Check-out)."
+          "enum": ["open", "closed"],
+          "description": "The current status of the attendance session."
         },
         "workCenterId": {
           "type": "string",
-          "description": "The ID of the work center for the record."
+          "description": "The ID of the work center for the session."
         },
-        "location": {
+        "appointmentTime": {
+          "type": "string",
+          "description": "The scheduled appointment time for the check-in."
+        },
+        "checkInTimestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the check-in event."
+        },
+        "checkInLocation": {
           "type": "object",
           "properties": {
             "latitude": { "type": "number" },
             "longitude": { "type": "number" },
             "accuracy": { "type": "number" }
-          }
+          },
+          "description": "Geolocation data for the check-in event."
         },
-        "imageUrl": {
+        "checkInImageUrl": {
           "type": "string",
-          "format": "uri"
+          "format": "uri",
+          "description": "URL of the photo taken at check-in."
         },
-        "aiAnalysis": {
-          "type": ["string", "null"]
+        "aiPunctualityAnalysis": {
+          "type": ["string", "null"],
+          "description": "AI-generated analysis of the user's punctuality for the check-in."
         },
-        "appointmentTime": {
-          "type": "string"
+        "checkOutTimestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the check-out event."
+        },
+        "checkOutLocation": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "accuracy": { "type": "number" }
+          },
+          "description": "Geolocation data for the check-out event."
+        },
+        "checkOutImageUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the photo taken at check-out."
         }
       },
       "required": [
         "id",
         "userId",
-        "timestamp",
-        "type",
+        "status",
         "workCenterId",
-        "location",
-        "imageUrl"
+        "appointmentTime",
+        "checkInTimestamp",
+        "checkInLocation",
+        "checkInImageUrl"
       ]
     },
     "WorkCenter": {

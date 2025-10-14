@@ -432,7 +432,7 @@ export default function RegisterAttendancePage() {
         return;
     }
     setIsSubmitting(true);
-    let aiAnalysis: string | null = null;
+    let aiPunctualityAnalysis: string | null = null;
     let imageUrl = '';
 
     try {
@@ -453,24 +453,24 @@ export default function RegisterAttendancePage() {
 
         if (diffMinutes > 0) {
             const result = await punctualityAnalysis({ minutesEarly: Math.round(diffMinutes) });
-            aiAnalysis = result.analysis;
+            aiPunctualityAnalysis = result.analysis;
         }
 
         // 3. Save record to Firestore
         const attendanceCollectionRef = collection(firestore, `users/${user.uid}/attendanceRecords`);
         await addDoc(attendanceCollectionRef, {
             userId: user.uid,
-            timestamp: serverTimestamp(),
-            type: 'check-in',
+            checkInTimestamp: serverTimestamp(),
+            appointmentTime: appointmentTime,
             workCenterId: workCenterId,
-            location: {
+            checkInLocation: {
                 latitude: location.latitude,
                 longitude: location.longitude,
                 accuracy: location.accuracy,
             },
-            imageUrl: imageUrl,
-            aiAnalysis: aiAnalysis,
-            appointmentTime: appointmentTime,
+            checkInImageUrl: imageUrl,
+            aiPunctualityAnalysis: aiPunctualityAnalysis,
+            status: 'open'
         });
         
         // 4. Show success dialog
@@ -481,7 +481,7 @@ export default function RegisterAttendancePage() {
             workCenterName: selectedWorkCenter?.name || 'N/A',
             location,
             image: capturedImage, // Show local captured image in dialog
-            aiAnalysis,
+            aiAnalysis: aiPunctualityAnalysis,
         };
         setLastSubmission(submissionData);
         setIsSuccessDialogOpen(true);
