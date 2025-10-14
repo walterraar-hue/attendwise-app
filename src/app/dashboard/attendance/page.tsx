@@ -66,16 +66,11 @@ export default function AttendancePage() {
       const records: AggregatedRecord[] = [];
       
       for (const member of companyUsers) {
-        // Since we already have the list of users, we can fetch their attendance records.
-        // This assumes that a user can read other users' attendance if they have the right role,
-        // which might require a security rule adjustment on the attendanceRecords subcollection.
-        // For now, let's assume the rules allow it for admins.
         try {
             const attendanceRef = collection(firestore, `users/${member.id}/attendanceRecords`);
             const attendanceSnap = await getDocs(query(attendanceRef, orderBy('checkInTimestamp', 'desc')));
             attendanceSnap.forEach(doc => {
               const docData = doc.data() as AttendanceRecord;
-               // Ensure checkInTimestamp is a Firestore Timestamp before calling toDate()
               if (docData.checkInTimestamp && typeof docData.checkInTimestamp.toDate === 'function') {
                   records.push({ 
                     ...docData,
@@ -86,13 +81,10 @@ export default function AttendancePage() {
               }
             });
         } catch (e) {
-            // This might fail if security rules don't allow reading other users' subcollections.
-            // We'll log it but continue, so the app doesn't crash.
             console.error(`Could not fetch attendance for user ${member.id}:`, e);
         }
       }
       
-      // Sort by check-in time, descending
       records.sort((a, b) => {
         const timeA = a.checkInTimestamp?.toDate?.().getTime() || 0;
         const timeB = b.checkInTimestamp?.toDate?.().getTime() || 0;
