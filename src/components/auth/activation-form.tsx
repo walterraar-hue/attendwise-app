@@ -153,14 +153,17 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
     let userCredential;
     try {
+        // Step 1: Create the auth user first to get a UID
         userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
+        // Step 2: Now that we are authenticated, validate the company and slots
         const companyRef = doc(firestore, "companies", values.companyCode);
         const companySnap = await getDoc(companyRef);
 
         if (!companySnap.exists()) {
             setCompanyCodeError("El código de compañía no es válido. Por favor, verifica e inténtalo de nuevo.");
+            // We must throw to trigger the catch block and delete the orphan user
             throw new Error("Invalid company code"); 
         }
 
@@ -181,6 +184,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             }
         }
         
+        // Step 3: If validation passes, commit the user document and update company
         const batch = writeBatch(firestore);
 
         const userDocRef = doc(firestore, "users", user.uid);
@@ -208,18 +212,22 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         router.push('/dashboard');
 
     } catch (error: any) {
+        // IMPORTANT: Clean up the created auth user if any subsequent step failed
         if (userCredential) {
             await deleteUser(userCredential.user).catch(delErr => {
+              // This is a best-effort cleanup. Log if it fails.
               console.error("Cleanup Error: Failed to delete orphaned auth user.", delErr);
             });
         }
       
+        // Handle specific, user-facing errors
         if (error.message === "Invalid company code") {
           // This case is already handled by setCompanyCodeError, so we don't need a toast.
         } else if (error.code === 'auth/email-already-in-use') {
             toast({ title: "Error de Registro", description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.", variant: "destructive" });
         } else {
             console.error("Member Registration Error:", error);
+            // Show other validation errors (like no slots) to the user
             toast({ title: "Error de Registro", description: error.message || "No se pudo crear la cuenta. Por favor, inténtalo de nuevo.", variant: "destructive" });
         }
     } finally {
@@ -338,4 +346,5 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   );
 }
 
+    
     
