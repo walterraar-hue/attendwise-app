@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, collection, query, where, getDocs, setDoc, updateDoc, increment } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc, increment } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -56,19 +56,19 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   const firestore = useFirestore();
   const [isLoading, setIsLoading] = useState(false);
 
-  const isPendingUserFlow = mode === 'member';
+  const isMemberFlow = mode === 'member';
 
   const form = useForm({
-    resolver: zodResolver(isPendingUserFlow ? memberSchema : adminSchema),
-    defaultValues: isPendingUserFlow
+    resolver: zodResolver(isMemberFlow ? memberSchema : adminSchema),
+    defaultValues: isMemberFlow
       ? { name: "", email: "", companyCode: "", password: "" }
       : { name: "", email: "", password: "" },
   });
 
   const handleAdminSubmit = async (values: z.infer<typeof adminSchema>) => {
     setIsLoading(true);
-    if (!plan) {
-      toast({ title: "Error", description: "No plan selected.", variant: "destructive" });
+    if (!plan || !auth || !firestore) {
+      toast({ title: "Error", description: "No se seleccionó un plan o los servicios de Firebase no están disponibles.", variant: "destructive" });
       setIsLoading(false);
       return;
     }
@@ -77,11 +77,10 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
+      const batch = writeBatch(firestore);
+      
       const newCompanyRef = doc(collection(firestore, 'companies'));
-
-      const roleLimits: Record<string, number> = {
-        'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Miembro': 0,
-      };
+      const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Miembro': 0 };
 
       if (plan === 'basic') {
           roleLimits['Global Admin'] = 1;
@@ -98,32 +97,27 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           roleLimits['Manager'] = 0;
       }
 
-      const companyData = {
+      batch.set(newCompanyRef, {
         id: newCompanyRef.id,
         name: `${values.name}'s Company`,
         subscriptionPlan: plan,
         usedSlots: 1,
         createdAt: serverTimestamp(),
         roleLimits: roleLimits,
-      };
+      });
 
-      const userData = {
+      const userDocRef = doc(firestore, 'users', user.uid);
+      batch.set(userDocRef, {
         id: user.uid,
         companyId: newCompanyRef.id,
         email: values.email,
         name: values.name,
         role: 'Global Admin',
         status: 'active',
-      };
+      });
       
-      const adminRoleData = { admin: true };
-
-      const batch = writeBatch(firestore);
-      batch.set(newCompanyRef, companyData);
-      const userDocRef = doc(firestore, 'users', user.uid);
-      batch.set(userDocRef, userData);
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      batch.set(adminRoleRef, adminRoleData);
+      batch.set(adminRoleRef, { admin: true });
 
       await batch.commit();
 
@@ -131,31 +125,13 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       router.push('/login');
 
     } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        toast({
-          variant: "destructive",
-          title: "Correo electrónico en uso",
-          description: "Este correo electrónico ya está registrado. Por favor, utiliza otro.",
-        });
-      } else if (error.code && error.code.includes('permission-denied')) {
-         const permissionError = new FirestorePermissionError({
-              path: `BATCH WRITE to admin, user, and company`,
-              operation: 'write', 
-              requestResourceData: { 
-                  "Note": "This was a batch write. The error could be on any of the following documents.",
-                  "/companies/{newCompanyId}": { name: `${values.name}'s Company`, plan: plan },
-                  "/users/{newUserId}": { email: values.email, role: "Global Admin" },
-                  "/roles_admin/{newUserId}": { admin: true }
-              }
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      } else {
-        toast({
-          title: "Error",
-          description: error.message || "An unexpected error occurred.",
-          variant: "destructive",
-        });
-      }
+       let description = "Ocurrió un error inesperado.";
+        if (error.code === 'auth/email-already-in-use') {
+            description = "Este correo electrónico ya está registrado. Por favor, utiliza otro.";
+        } else if (error.message) {
+            description = error.message;
+        }
+        toast({ title: "Error al crear equipo", description, variant: "destructive" });
     } finally {
         setIsLoading(false);
     }
@@ -170,13 +146,12 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     }
 
     try {
-        // Step 1: Find the pending user document that the admin created.
         const usersRef = collection(firestore, "users");
         const q = query(
             usersRef, 
             where("email", "==", values.email), 
             where("companyId", "==", values.companyCode),
-            where("status", "==", "pending")
+            where("status", "==", "active") 
         );
 
         const querySnapshot = await getDocs(q);
@@ -184,35 +159,33 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         if (querySnapshot.empty) {
             toast({
                 title: "Invitación no encontrada",
-                description: "No se encontró una invitación pendiente para este email y código de empresa. Por favor, verifica los datos o contacta a tu administrador.",
+                description: "No se encontró una invitación para este email y código de empresa. Por favor, verifica los datos o contacta a tu administrador.",
                 variant: "destructive",
             });
             setIsLoading(false);
             return;
         }
 
-        const pendingUserDoc = querySnapshot.docs[0];
-        const pendingUserRef = doc(firestore, "users", pendingUserDoc.id);
-        const companyRef = doc(firestore, "companies", values.companyCode);
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
 
-        // Step 2: Create the user in Firebase Auth.
+        if (userData.id) {
+             toast({
+                title: "Cuenta ya activada",
+                description: "Esta invitación ya ha sido utilizada. Por favor, inicia sesión.",
+                variant: "destructive",
+            });
+            setIsLoading(false);
+            return;
+        }
+        
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const newUser = userCredential.user;
 
-        // Step 3: Use a batch write to activate the user and increment company slots atomically.
-        const batch = writeBatch(firestore);
-
-        batch.update(pendingUserRef, { 
-            status: "active",
-            id: newUser.uid, // Stamp the official Auth UID onto the document
-            name: values.name // Update name from the form
+        await updateDoc(doc(firestore, "users", userDoc.id), {
+            id: newUser.uid,
+            name: values.name
         });
-
-        batch.update(companyRef, {
-            usedSlots: increment(1)
-        });
-
-        await batch.commit();
         
         toast({
             title: "¡Cuenta Activada!",
@@ -221,31 +194,13 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         router.push("/login");
 
     } catch (error: any) {
+        let description = "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.";
         if (error.code === 'auth/email-already-in-use') {
-            toast({
-                variant: "destructive",
-                title: "Correo electrónico en uso",
-                description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
-            });
-        } else if (error.code && error.code.includes('permission-denied')) {
-             const permissionError = new FirestorePermissionError({
-                path: `update /users/${values.email} & /companies/${values.companyCode}`,
-                operation: 'update',
-                requestResourceData: { 
-                  note: "Attempting to activate user and increment company slots.",
-                  userData: { status: 'active', id: 'new-auth-uid' },
-                  companyData: { usedSlots: 'increment(1)' }
-                }
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        } else {
-            console.error("Member activation error:", error);
-            toast({
-                title: "Error de Activación",
-                description: error.message || "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.",
-                variant: "destructive",
-            });
+            description = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
+        } else if (error.message) {
+            description = error.message;
         }
+        toast({ title: "Error de Activación", description, variant: "destructive" });
     } finally {
         setIsLoading(false);
     }
@@ -255,7 +210,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(mode === 'admin' ? handleAdminSubmit : handleMemberSubmit)}
+        onSubmit={form.handleSubmit(isMemberFlow ? handleMemberSubmit : handleAdminSubmit)}
         className="space-y-4"
       >
         <FormField
@@ -284,7 +239,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             </FormItem>
           )}
         />
-        {isPendingUserFlow && (
+        {isMemberFlow && (
           <FormField
             control={form.control}
             name="companyCode"

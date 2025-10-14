@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import Link from 'next/link';
@@ -61,8 +62,6 @@ export default function LoginPage() {
       let description = "Email o contraseña incorrectos.";
       if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         description = "El email o la contraseña no son correctos. Por favor, inténtalo de nuevo.";
-      } else if (error.message.includes('permission')) {
-        description = "Permisos insuficientes para realizar una acción requerida.";
       }
 
       toast({

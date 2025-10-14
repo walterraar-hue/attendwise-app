@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "@/hooks/use-toast";
 import { useFirestore, useUser } from "@/firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, doc, writeBatch, increment } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -70,7 +70,6 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
 
     ALL_ROLES_MAP.forEach((label, role) => {
         const limit = limits[role];
-        // Allow if limit is explicitly set to be > 0 or is -1 (unlimited)
         if (limit > 0 || limit === -1) {
             roles.push({ value: role, label: label });
         }
@@ -81,19 +80,17 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
 
 
   const onSubmit = async (values: z.infer<typeof inviteFormSchema>) => {
-    if (!adminUser || !company?.id) {
+    if (!adminUser || !company?.id || !firestore) {
         toast({ title: "Error", description: "No se pudo identificar la compañía.", variant: "destructive"});
         return;
     }
 
-    // Check if user with this email already exists in the company
     const userExists = users.some(u => u.email === values.email);
     if(userExists) {
         toast({ title: "Usuario ya existe", description: "Un usuario con este correo electrónico ya es parte del equipo.", variant: "destructive"});
         return;
     }
     
-    // Check role limits
     const roleLimits = company.roleLimits || {};
     const roleLimit = roleLimits[values.role] ?? 0;
     const usersInRole = users.filter(u => u.role === values.role).length;
@@ -108,17 +105,27 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
     }
 
     try {
-        await addDoc(collection(firestore, "users"), {
+        const batch = writeBatch(firestore);
+        
+        const newUserRef = doc(collection(firestore, "users"));
+        batch.set(newUserRef, {
             companyId: company.id,
             name: values.name,
             email: values.email,
             role: values.role,
-            status: "pending"
+            status: "active" // Set status to active directly
         });
 
+        const companyRef = doc(firestore, "companies", company.id);
+        batch.update(companyRef, {
+            usedSlots: increment(1)
+        });
+
+        await batch.commit();
+
         toast({
-            title: "Invitación Enviada",
-            description: `${values.name} ha sido invitado al equipo. Su estado es 'pendiente' hasta que se registre.`,
+            title: "Usuario Invitado",
+            description: `${values.name} ha sido añadido al equipo. Ahora puede registrarse con su email y código de empresa.`,
         });
         form.reset();
         setOpen(false);
@@ -141,7 +148,7 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
         <DialogHeader>
           <DialogTitle>Invitar a un nuevo usuario</DialogTitle>
           <DialogDescription>
-            Introduce los detalles a continuación. El usuario aparecerá como 'pendiente' hasta que se registre con su email y el código de la compañía.
+            El usuario será añadido como 'activo'. Deberá registrarse con su email y el código de la compañía para acceder.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
