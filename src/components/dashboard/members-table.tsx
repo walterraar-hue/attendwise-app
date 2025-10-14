@@ -21,7 +21,7 @@ import { MoreHorizontal, ShieldCheck, Trash2, UserCog } from "lucide-react";
 import { Button } from "../ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator } from "../ui/dropdown-menu";
 import { useFirestore } from "@/firebase";
-import { doc, writeBatch } from "firebase/firestore";
+import { doc, updateDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 const statusVariant: Record<UserStatus, "default" | "secondary" | "destructive"> = {
@@ -72,21 +72,8 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
     // --- End Validation ---
 
     try {
-      const batch = writeBatch(firestore);
       const userDocRef = doc(firestore, 'users', user.id);
-      batch.update(userDocRef, { role: newRole });
-
-      const adminRoleRef = doc(firestore, 'roles_admin', user.id);
-      const isAdminRoleNew = newRole === 'CEO' || newRole === 'Operations Manager';
-      const isAdminRoleOld = user.role === 'CEO' || user.role === 'Operations Manager';
-
-      if (isAdminRoleNew) {
-        batch.set(adminRoleRef, { admin: true, role: newRole });
-      } else if (isAdminRoleOld && !isAdminRoleNew) {
-        batch.delete(adminRoleRef);
-      }
-      
-      await batch.commit();
+      await updateDoc(userDocRef, { role: newRole });
 
       toast({
         title: "Rol Actualizado",

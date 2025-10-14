@@ -167,24 +167,8 @@
             }
           ]
         }
-      },
-      {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "AdminRole",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Indicates that the user is a global administrator. Document existence grants admin privileges.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier for the user."
-            }
-          ]
-        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, aligning with the specified principles. The structure prioritizes path-based ownership for private user data and employs membership maps for collaborative data access. Denormalization is used extensively to avoid `get()` calls in security rules, which enables atomic operations and simplifies debugging. Segregation is used to ensure all docs in a collection have the same security posture. Global roles are managed via document existence in dedicated collections.\n\n**Authorization Independence:** The `companyId` is denormalized into the `/users/{userId}` collection. This is critical for validating user roles and company associations without needing to perform `get()` operations in the security rules.\n\n**QAPs (Rules are not Filters):**\n*   List operations are secured via path-based ownership and the segregated role collections. Listing users for a company is accomplished via a collection group query on `/users` filtered by `companyId`, or via listing documents under `/companies/{companyId}/users/{userId}`.\n*   Listing attendance records are secured by path-based ownership under the `/users/{userId}/attendanceRecords` collection. Global admin can query with collection group from the top if `companyId` is stored inside each doc."
+    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, aligning with the specified principles. The structure prioritizes path-based ownership for private user data and employs membership maps for collaborative data access. Denormalization is used extensively to avoid `get()` calls in security rules, which enables atomic operations and simplifies debugging. Segregation is used to ensure all docs in a collection have the same security posture. Global roles are managed by a 'role' field within the user's document."
   }
 }
