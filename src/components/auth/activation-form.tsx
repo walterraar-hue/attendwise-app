@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { useState } from "react";
@@ -10,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, collection, setDoc, getDoc, increment } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, collection, getDoc, increment } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,9 +21,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import type { UserRole } from "@/lib/types";
-
 
 const memberSchema = z.object({
   name: z.string().min(2, "Por favor, introduce tu nombre completo."),
@@ -149,11 +144,11 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       }
 
       try {
-          // Step 1: Create the user in Firebase Auth
+          // Invert flow: First, create the Auth user.
           const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
           const user = userCredential.user;
 
-          // Step 2: Now that the user is authenticated, validate the company and slots
+          // Now that the user is authenticated, validate company and slots.
           const companyRef = doc(firestore, "companies", values.companyCode);
           const companySnap = await getDoc(companyRef);
 
@@ -164,13 +159,13 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           const companyData = companySnap.data();
           const memberLimit = companyData.roleLimits?.['Miembro'] ?? 0;
           const managerLimit = companyData.roleLimits?.['Manager'] ?? 0;
-          const totalLimit = (memberLimit === -1 || managerLimit === -1) ? Infinity : memberLimit + managerLimit;
+          const totalLimit = (memberLimit === -1 || managerLimit === -1) ? Infinity : (memberLimit + managerLimit);
 
           if (totalLimit !== Infinity && companyData.usedSlots >= totalLimit) {
               throw new Error("La compañía ha alcanzado su límite de usuarios.");
           }
-
-          // Step 3: If validation passes, create the user document and update company slots
+          
+          // If all validations pass, commit the user document and update company slots.
           const batch = writeBatch(firestore);
 
           const userDocRef = doc(firestore, "users", user.uid);
@@ -180,8 +175,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
               companyId: values.companyCode,
               email: values.email,
               name: values.name,
-              role: 'Miembro', // Default role for new members
-              status: 'active',
+              role: 'Miembro',
+              status: 'active', // STATUS IS ACTIVE FROM THE START
               createdAt: serverTimestamp(),
           });
           
@@ -198,18 +193,11 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           router.push('/dashboard');
 
       } catch (error: any) {
-          let errorMessage = "No se pudo crear la cuenta.";
+          let errorMessage = "No se pudo crear la cuenta. " + error.message;
           if (error.code === 'auth/email-already-in-use') {
               errorMessage = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
-          } else if (error.message.includes("código de compañía")) {
-              errorMessage = error.message;
-          } else if (error.message.includes("límite de usuarios")) {
-              errorMessage = error.message;
           }
-          else {
-              console.error("Member Registration Error:", error);
-              errorMessage = "Ocurrió un error: " + error.message;
-          }
+          console.error("Member Registration Error:", error);
           toast({ title: "Error de Registro", description: errorMessage, variant: "destructive" });
       } finally {
           setIsLoading(false);

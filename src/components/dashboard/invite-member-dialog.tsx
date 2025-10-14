@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -17,10 +16,13 @@ import { Copy, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { User } from "@/lib/types";
 
+// This component is now simplified. It no longer invites users directly.
+// It only serves to display the company's invitation code.
 export function InviteMemberDialog({ company }: { company: { id: string }; users: User[] }) {
   const { toast } = useToast();
   
   const copyToClipboard = () => {
+    if (!company?.id) return;
     navigator.clipboard.writeText(company.id);
     toast({
       title: "¡Copiado!",
@@ -50,11 +52,11 @@ export function InviteMemberDialog({ company }: { company: { id: string }; users
             <div className="flex items-center space-x-2 mt-2">
               <Input
                 id="invitation-code"
-                defaultValue={company.id}
+                defaultValue={company?.id || ''}
                 readOnly
                 className="font-code text-base"
               />
-              <Button size="icon" className="h-10 w-10" onClick={copyToClipboard}>
+              <Button size="icon" className="h-10 w-10" onClick={copyToClipboard} disabled={!company?.id}>
                 <Copy className="h-4 w-4" />
                 <span className="sr-only">Copiar</span>
               </Button>
