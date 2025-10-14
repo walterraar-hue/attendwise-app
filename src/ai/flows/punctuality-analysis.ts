@@ -40,6 +40,8 @@ An employee has checked in {{{minutesEarly}}} minutes early for their shift or a
 Generate a short, positive, and encouraging analysis about their punctuality. The tone should be professional but inspiring. Mention what arriving early says about their commitment and professionalism.
 
 Keep it to one or two brief sentences.
+
+Respond in Spanish.
 `,
 });
 

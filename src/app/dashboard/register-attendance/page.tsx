@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon, RefreshCw } from 'lucide-react';
+import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon, RefreshCw, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
@@ -18,9 +18,26 @@ import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc } from 'firebase/firestore';
 import type { User as AppUser, WorkCenter } from '@/lib/types';
 import { useDoc } from '@/firebase/firestore/use-doc';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ToastAction } from '@/components/ui/toast';
+
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
 const LOCATION_TIMEOUT_MS = 30000; // 30 seconds
+
+type SubmissionDetails = {
+    appointmentTime: string;
+    workCenter: string;
+    location: { latitude: number, longitude: number, accuracy: number } | null;
+    image: string | null;
+} | null;
 
 export default function RegisterAttendancePage() {
   const { toast } = useToast();
@@ -46,6 +63,9 @@ export default function RegisterAttendancePage() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [currentAccuracy, setCurrentAccuracy] = useState<number | null>(null);
+
+  const [lastSubmission, setLastSubmission] = useState<SubmissionDetails>(null);
+
 
   // Fetch user and company data
   const userDocRef = useMemoFirebase(() => {
@@ -248,14 +268,13 @@ export default function RegisterAttendancePage() {
     let aiAnalysisToast;
 
     try {
-        // Here you would handle the submission of the data,
-        // including appointmentTime, workCenter, capturedImage, and location
-        console.log({
+        const submissionData = {
             appointmentTime,
             workCenter,
             location,
-            image: capturedImage ? 'Image captured' : 'No Image'
-        });
+            image: capturedImage
+        };
+        setLastSubmission(submissionData);
 
         // Calculate punctuality
         const now = new Date();
@@ -274,6 +293,16 @@ export default function RegisterAttendancePage() {
         toast({
           title: '¡Registro Enviado!',
           description: aiAnalysisToast || 'Tu asistencia ha sido registrada correctamente.',
+          action: (
+             <DialogTrigger asChild>
+                <ToastAction altText="Ver Detalles" asChild>
+                    <Button variant="secondary" size="sm">
+                        <Eye className="mr-2" />
+                        Ver Detalles
+                    </Button>
+                </ToastAction>
+            </DialogTrigger>
+          ),
         });
 
         // Reset state after submission
@@ -330,7 +359,13 @@ export default function RegisterAttendancePage() {
     return null;
   }
 
+  const mapLink = lastSubmission?.location 
+    ? `https://www.google.com/maps?q=${lastSubmission.location.latitude},${lastSubmission.location.longitude}`
+    : '#';
+
+
   return (
+    <Dialog>
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <Header title="Registrar Asistencia" />
       <div className="max-w-2xl mx-auto">
@@ -392,28 +427,28 @@ export default function RegisterAttendancePage() {
 
             {step === 2 && (
                 <div className="space-y-4">
-                    <div className="aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden relative">
-                      {capturedImage ? (
-                          <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
-                      ) : (
-                          <>
-                              <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
-                              {hasCameraPermission === null && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
-                                  <Loader2 className="animate-spin mr-2" />
-                                  <p>Iniciando cámara...</p>
-                                </div>
-                              )}
-                              {hasCameraPermission === false && (
-                                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted text-destructive p-4">
-                                      <VideoOff className="mx-auto h-12 w-12" />
-                                      <p className="mt-2 font-semibold">Cámara no disponible</p>
-                                      <p className="text-sm text-center">No se pudo acceder a la cámara. Revisa los permisos de tu navegador.</p>
-                                  </div>
-                              )}
-                          </>
-                      )}
-                      <canvas ref={canvasRef} className="hidden"></canvas>
+                     <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted">
+                        {capturedImage ? (
+                            <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
+                        ) : (
+                            <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
+                        )}
+                        
+                        {!capturedImage && hasCameraPermission === null && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
+                                <Loader2 className="animate-spin mr-2" />
+                                <p>Iniciando cámara...</p>
+                            </div>
+                        )}
+
+                        {!capturedImage && hasCameraPermission === false && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted text-destructive p-4">
+                                <VideoOff className="mx-auto h-12 w-12" />
+                                <p className="mt-2 font-semibold">Cámara no disponible</p>
+                                <p className="text-sm text-center">No se pudo acceder a la cámara. Revisa los permisos de tu navegador.</p>
+                            </div>
+                        )}
+                        <canvas ref={canvasRef} className="hidden"></canvas>
                     </div>
 
                     <div className="flex justify-center gap-4">
@@ -454,6 +489,36 @@ export default function RegisterAttendancePage() {
           </CardContent>
         </Card>
       </div>
+       <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Detalles del Registro</DialogTitle>
+          <DialogDescription>
+            Aquí están los detalles de tu registro de asistencia.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+            {lastSubmission?.image && (
+                <div>
+                    <Label>Foto Capturada</Label>
+                    <div className="mt-2 rounded-md overflow-hidden border">
+                         <Image src={lastSubmission.image} alt="Detalle de foto de asistencia" width={400} height={300} className="w-full h-auto" />
+                    </div>
+                </div>
+            )}
+            {lastSubmission?.location && (
+                 <div>
+                    <Label>Ubicación Registrada</Label>
+                     <p className="text-sm text-muted-foreground">Precisión: {lastSubmission.location.accuracy.toFixed(0)} metros.</p>
+                    <Button variant="link" asChild className="p-0 h-auto">
+                        <a href={mapLink} target="_blank" rel="noopener noreferrer">
+                            Ver en Google Maps
+                        </a>
+                    </Button>
+                 </div>
+            )}
+        </div>
+      </DialogContent>
     </div>
+    </Dialog>
   );
 }
