@@ -74,7 +74,7 @@ export function SidebarNav({ userRole }: { userRole: UserRole }) {
     <>
       <SidebarHeader className="p-4 flex">
         <div className="flex items-center gap-2">
-            <Logo showIcon={false} />
+            <Logo showIcon={true} showSubtitle={false} />
         </div>
       </SidebarHeader>
       <SidebarContent>
