@@ -51,7 +51,7 @@ function DashboardHeader({ userRole, userProps, isLoading }: { userRole: string,
                 <span className="sr-only">Toggle Sidebar</span>
             </Button>
             <div className="hidden md:block">
-                <Logo logoTextClassName="text-primary-foreground" />
+                <Logo logoTextClassName="text-primary-foreground" showIcon={true} />
             </div>
             <div className="flex-1 flex justify-center">
                 <Breadcrumbs userRole={userRole} />
