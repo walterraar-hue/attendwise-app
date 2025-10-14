@@ -392,11 +392,11 @@ export default function RegisterAttendancePage() {
 
             {step === 2 && (
                 <div className="space-y-4">
-                    <div className="aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                    <div className="aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden relative">
                       {capturedImage ? (
                           <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
                       ) : (
-                          <div className="relative w-full h-full flex items-center justify-center">
+                          <>
                               <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
                               {hasCameraPermission === null && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
@@ -411,7 +411,7 @@ export default function RegisterAttendancePage() {
                                       <p className="text-sm text-center">No se pudo acceder a la cámara. Revisa los permisos de tu navegador.</p>
                                   </div>
                               )}
-                          </div>
+                          </>
                       )}
                       <canvas ref={canvasRef} className="hidden"></canvas>
                     </div>
@@ -456,9 +456,4 @@ export default function RegisterAttendancePage() {
       </div>
     </div>
   );
-
-    
-
-    
-
-    
+}
