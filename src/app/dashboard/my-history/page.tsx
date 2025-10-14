@@ -2,12 +2,13 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Header from "@/components/dashboard/header";
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, orderBy, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import type { AttendanceRecord } from '@/lib/types';
+import type { AttendanceRecord, WorkCenter, User as AppUser } from '@/lib/types';
+import { useDoc } from '@/firebase/firestore/use-doc';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,7 +27,7 @@ import {
   AlertDialogAction,
   AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
-import { Camera, MapPin, Wand2, LogIn, LogOut, ArrowRight, VideoOff, Loader2, RefreshCw } from 'lucide-react';
+import { Camera, MapPin, Wand2, LogIn, LogOut, ArrowRight, VideoOff, Loader2, RefreshCw, Building } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -37,7 +38,7 @@ const ACCEPTABLE_ACCURACY_METERS = 100;
 const LOCATION_TIMEOUT_MS = 20000; // 20 seconds
 
 // Dialog to show full details of a closed record
-function AttendanceDetailsDialog({ record, isOpen, onClose }: { record: AttendanceRecord | null; isOpen: boolean; onClose: () => void; }) {
+function AttendanceDetailsDialog({ record, workCenterName, isOpen, onClose }: { record: AttendanceRecord | null; workCenterName: string; isOpen: boolean; onClose: () => void; }) {
   if (!record) return null;
 
   const checkInMapLink = record.checkInLocation ? `https://www.google.com/maps?q=${record.checkInLocation.latitude},${record.checkInLocation.longitude}` : '#';
@@ -49,7 +50,7 @@ function AttendanceDetailsDialog({ record, isOpen, onClose }: { record: Attendan
         <AlertDialogHeader>
           <AlertDialogTitle>Detalles Completos del Registro</AlertDialogTitle>
           <AlertDialogDescription>
-            {`Jornada del ${format(record.checkInTimestamp.toDate(), "eeee, d 'de' MMMM", { locale: es })}.`}
+            {`Jornada del ${format(record.checkInTimestamp.toDate(), "eeee, d 'de' MMMM", { locale: es })} en ${workCenterName}.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-4">
@@ -198,35 +199,32 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
 
   useEffect(() => {
     let stream: MediaStream | null = null;
-
+    
     async function setupCamera() {
-      if (isOpen && step === 2 && !capturedImage) {
-        setHasCameraPermission(true);
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-          setHasCameraPermission(true);
-        } catch (error) {
-          console.error("Error accessing camera:", error);
-          setHasCameraPermission(false);
-          toast({ variant: 'destructive', title: 'Acceso a Cámara Denegado' });
+        if (isOpen && step === 2 && !capturedImage && videoRef.current) {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoRef.current.srcObject = stream;
+                setHasCameraPermission(true);
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+                setHasCameraPermission(false);
+                toast({ variant: 'destructive', title: 'Acceso a Cámara Denegado' });
+            }
         }
-      }
     }
 
     setupCamera();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
     };
-  }, [isOpen, step, capturedImage, toast]);
+}, [isOpen, step, capturedImage, toast]);
 
 
   const handleCapture = () => {
@@ -370,6 +368,30 @@ export default function MyHistoryPage() {
   const [selectedRecordForDetails, setSelectedRecordForDetails] = useState<AttendanceRecord | null>(null);
   const [selectedRecordForCheckOut, setSelectedRecordForCheckOut] = useState<AttendanceRecord | null>(null);
 
+  const userDocRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [user, firestore]);
+  const { data: userData } = useDoc<AppUser>(userDocRef);
+  const companyId = userData?.companyId;
+
+  // Fetch work centers for the company
+  const workCentersQuery = useMemoFirebase(() => {
+      if (!companyId || !firestore) return null;
+      return collection(firestore, `companies/${companyId}/workCenters`);
+  }, [companyId, firestore]);
+  const { data: workCenters, isLoading: isLoadingWorkCenters } = useCollection<WorkCenter>(workCentersQuery);
+  
+  // Create a map of work center IDs to names for easy lookup
+  const workCenterMap = useMemo(() => {
+    if (!workCenters) return {};
+    return workCenters.reduce((acc, center) => {
+      acc[center.id] = center.name;
+      return acc;
+    }, {} as { [key: string]: string });
+  }, [workCenters]);
+
+
   const attendanceQuery = useMemoFirebase(() => {
     if (!user) return null;
     return query(
@@ -379,6 +401,9 @@ export default function MyHistoryPage() {
   }, [user, firestore]);
 
   const { data: records, isLoading } = useCollection<AttendanceRecord>(attendanceQuery);
+  
+  const isLoadingData = isLoading || isLoadingWorkCenters;
+
 
   return (
     <>
@@ -392,7 +417,7 @@ export default function MyHistoryPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-            {isLoading ? (
+            {isLoadingData ? (
                 <div className="space-y-2">
                     {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
                 </div>
@@ -401,6 +426,7 @@ export default function MyHistoryPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead className="w-[180px]">Fecha</TableHead>
+                            <TableHead>Centro de Trabajo</TableHead>
                             <TableHead>Hora Citado (Entrada)</TableHead>
                             <TableHead>Hora Registro (Entrada)</TableHead>
                             <TableHead>Hora Citado (Salida)</TableHead>
@@ -416,6 +442,12 @@ export default function MyHistoryPage() {
                             <TableCell>
                                 <div className="font-medium capitalize">{format(record.checkInTimestamp.toDate(), "eeee, d 'de' MMMM", { locale: es })}</div>
                                 <div className="text-sm text-muted-foreground">{format(record.checkInTimestamp.toDate(), "yyyy")}</div>
+                            </TableCell>
+                             <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Building className="size-4 text-muted-foreground" />
+                                  <span className="font-medium">{workCenterMap[record.workCenterId] || 'N/A'}</span>
+                                </div>
                             </TableCell>
                             <TableCell>
                                 <div className="font-medium">{record.appointmentTime}</div>
@@ -457,7 +489,7 @@ export default function MyHistoryPage() {
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={7} className="h-24 text-center">
+                            <TableCell colSpan={8} className="h-24 text-center">
                                 No tienes registros de asistencia todavía.
                             </TableCell>
                         </TableRow>
@@ -473,6 +505,7 @@ export default function MyHistoryPage() {
       isOpen={!!selectedRecordForDetails}
       onClose={() => setSelectedRecordForDetails(null)}
       record={selectedRecordForDetails}
+      workCenterName={selectedRecordForDetails ? workCenterMap[selectedRecordForDetails.workCenterId] || 'N/A' : ''}
     />
 
     <CheckOutDialog 
