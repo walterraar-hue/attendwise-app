@@ -18,18 +18,10 @@ import { doc } from "firebase/firestore";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { Skeleton } from "@/components/ui/skeleton";
 
-function DashboardHeader() {
-  const { user } = useUser();
-  const firestore = useFirestore();
+function DashboardHeader({ userRole, userProps, isLoading }: { userRole: string, userProps: any, isLoading: boolean }) {
   const { toggleSidebar } = useSidebar();
 
-  const userDocRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
-  
-  if (isUserDataLoading || !user || !userData) {
+  if (isLoading) {
     return (
         <header className="sticky top-0 z-30 flex h-16 items-center border-b bg-primary text-primary-foreground">
             <div className="flex h-full w-full items-center gap-4 px-4 sm:px-6">
@@ -42,16 +34,6 @@ function DashboardHeader() {
             </div>
         </header>
     );
-  }
-
-  const userProps = {
-      id: user.uid,
-      name: userData.name || user.displayName || 'No Name',
-      email: userData.email || user.email || 'No Email',
-      role: userData.role || 'Miembro', 
-      status: userData.status || 'active',
-      avatarUrl: user.photoURL || '',
-      companyId: userData.companyId || '',
   }
 
   return (
@@ -70,7 +52,7 @@ function DashboardHeader() {
                 <Logo logoTextClassName="text-primary-foreground" />
             </div>
             <div className="flex-1 flex justify-center">
-                <Breadcrumbs userRole={userProps.role} />
+                <Breadcrumbs userRole={userRole} />
             </div>
             <div className="ml-auto flex items-center gap-4">
                 <UserNav user={userProps} />
@@ -87,7 +69,14 @@ export default function DashboardLayout({
   children: ReactNode;
 }) {
   const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
   const router = useRouter();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [user, firestore]);
+  const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -95,18 +84,31 @@ export default function DashboardLayout({
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !user) {
+  const isLoading = isUserLoading || isUserDataLoading;
+
+  if (isLoading || !user || !userData) {
     // You can show a loading spinner here
     return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  }
+
+  const userRole = userData?.role || 'Miembro';
+  const userProps = {
+      id: user.uid,
+      name: userData.name || user.displayName || 'No Name',
+      email: userData.email || user.email || 'No Email',
+      role: userRole, 
+      status: userData.status || 'active',
+      avatarUrl: user.photoURL || '',
+      companyId: userData.companyId || '',
   }
 
   return (
     <SidebarProvider>
         <div className="flex h-screen flex-col bg-background">
-           <DashboardHeader />
+           <DashboardHeader userRole={userRole} userProps={userProps} isLoading={isLoading} />
             <div className="flex flex-1 overflow-hidden">
                 <Sidebar>
-                    <SidebarNav />
+                    <SidebarNav userRole={userRole} />
                 </Sidebar>
                 <main className="flex-1 overflow-y-auto">
                     {children}

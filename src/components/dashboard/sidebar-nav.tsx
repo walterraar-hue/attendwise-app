@@ -3,7 +3,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, Settings, LogOut, Timer, ClipboardCheck, History, CalendarDays, TrendingUp, ClipboardList, BarChartHorizontal } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, ClipboardCheck, History, ClipboardList, BarChartHorizontal } from 'lucide-react';
 import {
   SidebarHeader,
   SidebarContent,
@@ -14,15 +14,11 @@ import {
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import Logo from '../logo';
-import { Badge } from '../ui/badge';
-import { useAuth, useFirestore, useMemoFirebase } from '@/firebase';
+import { useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/firebase';
 import { useMemo } from 'react';
-import type { User as AppUser } from '@/lib/types';
-import { doc } from 'firebase/firestore';
-import { useDoc } from '@/firebase/firestore/use-doc';
+import type { UserRole } from '@/lib/types';
 
 export const navItemsByRole = {
     'Global Admin': [
@@ -54,20 +50,11 @@ export const navItemsByRole = {
 };
 
 
-export function SidebarNav() {
+export function SidebarNav({ userRole }: { userRole: UserRole }) {
   const pathname = usePathname();
   const auth = useAuth();
   const router = useRouter();
-  const { user } = useUser();
-  const firestore = useFirestore();
 
-  const userDocRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: userData } = useDoc<AppUser>(userDocRef);
-
-  const userRole = userData?.role || 'Miembro';
   const navItems = useMemo(() => navItemsByRole[userRole] || navItemsByRole['Miembro'], [userRole]);
 
   const handleLogout = async () => {
