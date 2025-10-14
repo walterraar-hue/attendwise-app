@@ -11,11 +11,10 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, User as FirebaseAuthUser } from 'firebase/auth';
+import { useAuth } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, doc, updateDoc, increment, writeBatch } from 'firebase/firestore';
 
 
 const loginSchema = z.object({
@@ -25,7 +24,6 @@ const loginSchema = z.object({
 
 export default function LoginPage() {
   const auth = useAuth();
-  const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -36,51 +34,6 @@ export default function LoginPage() {
       password: '',
     },
   });
-
-  const activatePendingUser = async (authUser: FirebaseAuthUser) => {
-    if (!firestore) return;
-  
-    const usersRef = collection(firestore, "users");
-    const q = query(usersRef, where("email", "==", authUser.email), where("status", "==", "pending"));
-    
-    const querySnapshot = await getDocs(q);
-    
-    if (!querySnapshot.empty) {
-        const pendingUserDoc = querySnapshot.docs[0];
-        const userDocRef = doc(firestore, "users", pendingUserDoc.id);
-        const companyRef = doc(firestore, "companies", pendingUserDoc.data().companyId);
-
-        try {
-            // STEP 1: Activate the user. This is allowed by security rules.
-            await updateDoc(userDocRef, {
-                status: "active",
-                id: authUser.uid, // Stamp the official Auth UID
-            });
-
-            // STEP 2: Increment the company's used slots. This is also allowed.
-            await updateDoc(companyRef, {
-                usedSlots: increment(1)
-            });
-
-            toast({
-                title: "¡Cuenta Activada!",
-                description: "Tu cuenta ha sido activada correctamente."
-            });
-            
-        } catch (error: any) {
-            console.error("Error activating user:", error);
-            toast({
-                variant: "destructive",
-                title: "Error de Activación",
-                description: "No se pudo activar tu cuenta. Verifica tus permisos o contacta a soporte.",
-            });
-            if (auth) {
-                await auth.signOut();
-            }
-            throw error; // Re-throw to be caught by the outer try/catch
-        }
-    }
-  };
 
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     if (!auth) {
@@ -93,10 +46,7 @@ export default function LoginPage() {
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-      
-      // After successful login, check and activate if the user was pending
-      await activatePendingUser(userCredential.user);
+      await signInWithEmailAndPassword(auth, values.email, values.password);
       
       toast({
         title: "Inicio de Sesión Exitoso",
@@ -107,10 +57,18 @@ export default function LoginPage() {
 
     } catch (error: any) {
       console.error("Login error:", error);
+      
+      let description = "Email o contraseña incorrectos.";
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        description = "El email o la contraseña no son correctos. Por favor, inténtalo de nuevo.";
+      } else if (error.message.includes('permission')) {
+        description = "Permisos insuficientes para realizar una acción requerida.";
+      }
+
       toast({
         variant: "destructive",
         title: "Fallo en el Inicio de Sesión",
-        description: error.message?.includes('permission') ? 'Permisos insuficientes para activar la cuenta.' : (error.message || "Email o contraseña incorrectos."),
+        description: description,
       });
     }
   };

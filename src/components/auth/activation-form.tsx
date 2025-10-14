@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, collection, query, where, getDocs, setDoc } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, collection, query, where, getDocs, setDoc, updateDoc, increment } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -41,7 +41,7 @@ const adminSchema = z.object({
 });
 
 function SubmitButton({ mode, isLoading }: { mode: "admin" | "member", isLoading: boolean }) {
-  const text = mode === "admin" ? "Crear Equipo" : "Crear Cuenta";
+  const text = mode === "admin" ? "Crear Equipo" : "Activar Cuenta";
   return (
     <Button type="submit" className="w-full" disabled={isLoading}>
       {isLoading ? <Loader2 className="animate-spin" /> : text}
@@ -163,54 +163,91 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
-    try {
-      // Step 1: Find the pending user document that the admin created.
-      const usersRef = collection(firestore, "users");
-      const q = query(
-        usersRef, 
-        where("email", "==", values.email), 
-        where("companyId", "==", values.companyCode),
-        where("status", "==", "pending")
-      );
-
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        toast({
-          title: "Invitación no encontrada",
-          description: "No se encontró una invitación pendiente para este email y código de empresa. Por favor, verifica los datos o contacta a tu administrador.",
-          variant: "destructive",
-        });
+    if (!firestore || !auth) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Servicios de Firebase no disponibles.' });
         setIsLoading(false);
         return;
-      }
-      
-      // Step 2: Just create the user in Firebase Auth. The activation will happen on first login.
-      await createUserWithEmailAndPassword(auth, values.email, values.password);
-      
-      toast({
-        title: "¡Cuenta Creada!",
-        description: "Tu cuenta ha sido creada. Por favor, inicia sesión para completar la activación.",
-      });
-      router.push("/login");
+    }
+
+    try {
+        // Step 1: Find the pending user document that the admin created.
+        const usersRef = collection(firestore, "users");
+        const q = query(
+            usersRef, 
+            where("email", "==", values.email), 
+            where("companyId", "==", values.companyCode),
+            where("status", "==", "pending")
+        );
+
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            toast({
+                title: "Invitación no encontrada",
+                description: "No se encontró una invitación pendiente para este email y código de empresa. Por favor, verifica los datos o contacta a tu administrador.",
+                variant: "destructive",
+            });
+            setIsLoading(false);
+            return;
+        }
+
+        const pendingUserDoc = querySnapshot.docs[0];
+        const pendingUserRef = doc(firestore, "users", pendingUserDoc.id);
+        const companyRef = doc(firestore, "companies", values.companyCode);
+
+        // Step 2: Create the user in Firebase Auth.
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const newUser = userCredential.user;
+
+        // Step 3: Use a batch write to activate the user and increment company slots atomically.
+        const batch = writeBatch(firestore);
+
+        batch.update(pendingUserRef, { 
+            status: "active",
+            id: newUser.uid, // Stamp the official Auth UID onto the document
+            name: values.name // Update name from the form
+        });
+
+        batch.update(companyRef, {
+            usedSlots: increment(1)
+        });
+
+        await batch.commit();
+        
+        toast({
+            title: "¡Cuenta Activada!",
+            description: "Tu cuenta ha sido activada correctamente. Ahora puedes iniciar sesión.",
+        });
+        router.push("/login");
 
     } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use') {
-        toast({
-          variant: "destructive",
-          title: "Correo electrónico en uso",
-          description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
-        });
-      } else {
-        console.error("Member creation error:", error);
-        toast({
-          title: "Error de Creación",
-          description: error.message || "No se pudo crear la cuenta. Verifica tus datos e inténtalo de nuevo.",
-          variant: "destructive",
-        });
-      }
+        if (error.code === 'auth/email-already-in-use') {
+            toast({
+                variant: "destructive",
+                title: "Correo electrónico en uso",
+                description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
+            });
+        } else if (error.code && error.code.includes('permission-denied')) {
+             const permissionError = new FirestorePermissionError({
+                path: `update /users/${values.email} & /companies/${values.companyCode}`,
+                operation: 'update',
+                requestResourceData: { 
+                  note: "Attempting to activate user and increment company slots.",
+                  userData: { status: 'active', id: 'new-auth-uid' },
+                  companyData: { usedSlots: 'increment(1)' }
+                }
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        } else {
+            console.error("Member activation error:", error);
+            toast({
+                title: "Error de Activación",
+                description: error.message || "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.",
+                variant: "destructive",
+            });
+        }
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
   };
 
