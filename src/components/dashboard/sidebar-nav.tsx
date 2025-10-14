@@ -29,6 +29,7 @@ export const navItemsByRole = {
       { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
       { href: '/dashboard/register-attendance', icon: ClipboardCheck, label: 'Registrar Asistencia' },
       { href: '/dashboard/my-history', icon: History, label: 'Mi Historial' },
+      { href: '/dashboard/attendance', icon: ClipboardList, label: 'Asistencia Equipo' },
       { href: '/dashboard/team-management', icon: Users, label: 'Gestión de Equipo' },
       { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
     ],
@@ -40,6 +41,7 @@ export const navItemsByRole = {
     'Operations Manager': [
       { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
       { href: '/dashboard/om-indicators', icon: BarChartHorizontal, label: 'Indicadores' },
+      { href: '/dashboard/attendance', icon: ClipboardList, label: 'Asistencia Equipo' },
       { href: '/dashboard/team-management', icon: Users, label: 'Gestión de Equipo' },
       { href: '/dashboard/register-attendance', icon: ClipboardCheck, label: 'Registrar Asistencia' },
     ],

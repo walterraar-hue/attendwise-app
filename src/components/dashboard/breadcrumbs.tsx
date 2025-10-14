@@ -18,6 +18,7 @@ allNavItems.forEach(item => {
 });
 // Add manual entries for routes not in nav
 breadcrumbNameMap['/dashboard'] = 'Dashboard';
+breadcrumbNameMap['/dashboard/attendance'] = 'Asistencia Equipo';
 
 
 export default function Breadcrumbs() {
