@@ -39,4 +39,10 @@ export interface AttendanceRecord {
   status: 'Present' | 'Absent' | 'Late' | 'On Leave';
 }
 
+export interface WorkCenter {
+  id: string;
+  name: string;
+  createdAt: any;
+}
+
 export type Role = "admin" | "manager";

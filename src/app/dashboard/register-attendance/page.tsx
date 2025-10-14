@@ -13,14 +13,11 @@ import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
 import { punctualityAnalysis } from '@/ai/flows/punctuality-analysis';
-
-// Mock data for work centers
-const workCenters = [
-  { id: 'wc-01', name: 'Centro de Operaciones Principal' },
-  { id: 'wc-02', name: 'Bodega Central' },
-  { id: 'wc-03', name: 'Oficina Satélite Norte' },
-  { id: 'wc-04', name: 'Punto de Venta Plaza Mayor' },
-];
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { collection, doc } from 'firebase/firestore';
+import type { User as AppUser, WorkCenter } from '@/lib/types';
+import { useDoc } from '@/firebase/firestore/use-doc';
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
 const LOCATION_TIMEOUT_MS = 30000; // 30 seconds
@@ -30,6 +27,8 @@ export default function RegisterAttendancePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const locationWatcherId = useRef<number | null>(null);
+  const { user } = useUser();
+  const firestore = useFirestore();
 
   const [step, setStep] = useState(1);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
@@ -47,6 +46,21 @@ export default function RegisterAttendancePage() {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [currentAccuracy, setCurrentAccuracy] = useState<number | null>(null);
+
+  // Fetch user and company data
+  const userDocRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [user, firestore]);
+  const { data: userData } = useDoc<AppUser>(userDocRef);
+  const companyId = userData?.companyId;
+
+  // Fetch work centers
+  const workCentersQuery = useMemoFirebase(() => {
+      if (!companyId || !firestore) return null;
+      return collection(firestore, `companies/${companyId}/workCenters`);
+  }, [companyId, firestore]);
+  const { data: workCenters, isLoading: isLoadingWorkCenters } = useCollection<WorkCenter>(workCentersQuery);
 
 
   // Effect for Geolocation using watchPosition
@@ -339,12 +353,12 @@ export default function RegisterAttendancePage() {
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="work-center">Centro de Trabajo</Label>
-                        <Select value={workCenter} onValueChange={setWorkCenter}>
+                        <Select value={workCenter} onValueChange={setWorkCenter} disabled={isLoadingWorkCenters}>
                         <SelectTrigger id="work-center">
-                            <SelectValue placeholder="Selecciona un centro" />
+                            <SelectValue placeholder={isLoadingWorkCenters ? "Cargando centros..." : "Selecciona un centro"} />
                         </SelectTrigger>
                         <SelectContent>
-                            {workCenters.map(center => (
+                            {workCenters?.map(center => (
                             <SelectItem key={center.id} value={center.id}>{center.name}</SelectItem>
                             ))}
                         </SelectContent>
