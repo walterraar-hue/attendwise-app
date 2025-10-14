@@ -22,8 +22,10 @@ export default function Logo({
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <rect width="24" height="24" rx="6" fill="currentColor" />
-          <path d="M8 12L10.5 14.5L16 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path
+                d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM10.5 16.5L6 12L7.41 10.59L10.5 13.67L16.59 7.59L18 9L10.5 16.5Z"
+                fill="currentColor"
+            />
         </svg>
       )}
       <div className="flex flex-col">
