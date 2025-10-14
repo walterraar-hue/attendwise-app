@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon, RefreshCw, Eye } from 'lucide-react';
+import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon, RefreshCw, Eye, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
@@ -27,6 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ToastAction } from '@/components/ui/toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
@@ -368,8 +369,8 @@ export default function RegisterAttendancePage() {
     <Dialog>
       <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
         <Header title="Registrar Asistencia" />
-        <div className="flex justify-center">
-          <div className="max-w-2xl w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          <div className="lg:col-span-2">
             <Card>
               <CardHeader>
                 <CardTitle>Registro de Ingreso</CardTitle>
@@ -490,6 +491,21 @@ export default function RegisterAttendancePage() {
               </CardContent>
             </Card>
           </div>
+          <div className="lg:col-span-1">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Proceso de Registro</AlertTitle>
+              <AlertDescription>
+                <ul className="list-disc list-inside space-y-2 mt-2">
+                  <li>Asegúrate de tener buena señal GPS para una ubicación precisa.</li>
+                  <li>Permite el acceso a la cámara y la ubicación en tu navegador.</li>
+                  <li>La foto debe ser clara y tomada en tu centro de trabajo asignado.</li>
+                  <li>Verifica que la hora de tu cita sea la correcta antes de continuar.</li>
+                  <li>Si eres puntual, ¡recibirás un mensaje motivacional de nuestra IA!</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          </div>
         </div>
          <DialogContent>
           <DialogHeader>
@@ -524,5 +540,3 @@ export default function RegisterAttendancePage() {
     </Dialog>
   );
 }
-
-    
