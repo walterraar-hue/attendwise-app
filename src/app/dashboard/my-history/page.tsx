@@ -117,7 +117,6 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
   
   const [step, setStep] = useState(1);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -135,8 +134,6 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         setLocationError(null);
         setIsLocating(false);
         setRetryCount(0);
-        if (stream) stream.getTracks().forEach(track => track.stop());
-        setStream(null);
     }
   }, [isOpen, record]);
 
@@ -153,8 +150,16 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
             return;
         }
 
+        const locationTimeout = setTimeout(() => {
+            if (!location) {
+                setLocationError("Se agotó el tiempo para obtener la ubicación.");
+                setIsLocating(false);
+            }
+        }, LOCATION_TIMEOUT_MS);
+
         navigator.geolocation.getCurrentPosition(
             (pos) => {
+                clearTimeout(locationTimeout);
                 const { latitude, longitude, accuracy } = pos.coords;
                 if (accuracy > ACCEPTABLE_ACCURACY_METERS) {
                     setLocationError(`Precisión (${accuracy.toFixed(0)}m) muy baja. Inténtalo en un lugar con mejor señal.`);
@@ -166,6 +171,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
                 setIsLocating(false);
             },
             (err) => {
+                clearTimeout(locationTimeout);
                 let message = "Error al obtener la ubicación. Revisa los permisos.";
                 if (err.code === err.PERMISSION_DENIED) message = "Permiso de ubicación denegado.";
                 if (err.code === err.POSITION_UNAVAILABLE) message = "Ubicación no disponible.";
@@ -179,23 +185,33 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
   }, [isOpen, step, retryCount]);
 
   useEffect(() => {
+    let stream: MediaStream | null = null;
+
     async function setupCamera() {
       if (isOpen && step === 2 && !capturedImage) {
         setHasCameraPermission(null);
         try {
-          const s = await navigator.mediaDevices.getUserMedia({ video: true });
-          setStream(s);
-          if (videoRef.current) videoRef.current.srcObject = s;
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
           setHasCameraPermission(true);
         } catch (error) {
+          console.error("Error accessing camera:", error);
           setHasCameraPermission(false);
           toast({ variant: 'destructive', title: 'Acceso a Cámara Denegado' });
         }
       }
     }
+
     setupCamera();
-    return () => { if (stream) stream.getTracks().forEach(track => track.stop()); };
-  }, [isOpen, step, capturedImage, toast, stream]);
+
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [isOpen, step, capturedImage, toast]);
 
 
   const handleCapture = () => {
@@ -206,8 +222,13 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         canvas.height = video.videoHeight;
         canvas.getContext('2d')?.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
         setCapturedImage(canvas.toDataURL('image/png'));
-        if (stream) stream.getTracks().forEach(track => track.stop());
-        setStream(null);
+        
+        // Stop the camera stream after capturing the image
+        if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach(track => track.stop());
+            videoRef.current.srcObject = null;
+        }
     }
   };
 
