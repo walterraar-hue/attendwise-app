@@ -57,7 +57,7 @@ function DashboardHeader({ userRole, userProps, isLoading }: { userRole: string,
             </div>
 
             <div className="flex-1 flex justify-center md:hidden">
-                 <Logo logoTextClassName="text-primary-foreground" showIcon={true} showSubtitle={false} />
+                 <Logo logoTextClassName="text-primary-foreground" showIcon={true} showSubtitle={true} />
             </div>
 
             <div className="hidden flex-1 md:flex justify-center">
