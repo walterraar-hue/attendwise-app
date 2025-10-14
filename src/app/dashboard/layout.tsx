@@ -2,7 +2,7 @@
 'use client';
 
 import type { ReactNode } from "react";
-import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import { SidebarNav } from "@/components/dashboard/sidebar-nav";
 import { useUser } from "@/firebase";
 import { useRouter } from "next/navigation";
@@ -31,7 +31,7 @@ function DashboardHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-30 w-full border-b bg-primary text-primary-foreground">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center border-b bg-primary text-primary-foreground">
        <div className="container mx-auto flex h-16 items-center gap-4 px-4 sm:px-6">
             <Button
                 size="icon"
@@ -75,15 +75,15 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-        <div className="flex h-screen flex-col">
+        <div className="flex h-screen flex-col bg-background">
            <DashboardHeader />
             <div className="flex flex-1 overflow-hidden">
                 <Sidebar>
                     <SidebarNav />
                 </Sidebar>
-                <SidebarInset className="overflow-y-auto">
+                <main className="flex-1 overflow-y-auto">
                     {children}
-                </SidebarInset>
+                </main>
             </div>
         </div>
     </SidebarProvider>
