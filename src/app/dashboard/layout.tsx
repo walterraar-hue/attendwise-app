@@ -64,9 +64,7 @@ function DashboardHeader({ userRole, userProps, isLoading }: { userRole: string,
                 <Breadcrumbs userRole={userRole} />
             </div>
 
-            <div className="flex items-center gap-4">
-                <UserNav user={userProps} />
-            </div>
+            <UserNav user={userProps} />
        </div>
     </header>
   );
