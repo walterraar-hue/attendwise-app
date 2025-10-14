@@ -23,13 +23,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import type { UserRole } from "@/lib/types";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 
 const memberSchema = z.object({
@@ -157,9 +150,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     let userCredential;
 
     try {
-        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
-
         const companyRef = doc(firestore, "companies", values.companyCode);
         const companySnap = await getDoc(companyRef);
 
@@ -187,6 +177,9 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             }
         }
         
+        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
+        
         const batch = writeBatch(firestore);
 
         const userDocRef = doc(firestore, "users", user.uid);
@@ -196,10 +189,10 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             companyId: values.companyCode,
             email: values.email,
             name: values.name,
-            role: userRoleToAssign, // Members are registered with this role by default
+            role: userRoleToAssign,
             status: 'active',
             createdAt: serverTimestamp(),
-            isRoleLocked: false, // The role is not locked, admin needs to assign it
+            isRoleLocked: true, 
         });
         
         if (userRoleToAssign === 'Miembro') {
@@ -225,7 +218,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       
         if (error.code === 'auth/email-already-in-use') {
             toast({ title: "Error de Registro", description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.", variant: "destructive" });
-        } else if (!companyCodeError) {
+        } else if (!companyCodeError) { // Don't show generic error if a specific one is already set
             console.error("Member Registration Error:", error);
             if (error.message !== "Invalid company code" && error.message !== "Role not available in plan" && error.message !== "Role slots are full") {
               toast({ title: "Error de Registro", description: "No se pudo crear la cuenta. Por favor, inténtalo de nuevo.", variant: "destructive" });
