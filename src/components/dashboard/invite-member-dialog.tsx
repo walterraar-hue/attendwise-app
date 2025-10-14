@@ -14,11 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Copy, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { User } from "@/lib/types";
+
 
 // This component is now simplified. It no longer invites users directly.
 // It only serves to display the company's invitation code.
-export function InviteMemberDialog({ company }: { company: { id: string }; users: User[] }) {
+export function InviteMemberDialog({ company }: { company: { id: string };}) {
   const { toast } = useToast();
   
   const copyToClipboard = () => {
