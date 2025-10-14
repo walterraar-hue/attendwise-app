@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon, RefreshCw, Eye, Info } from 'lucide-react';
+import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon, RefreshCw, Eye, Info, Wand2, Circle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
@@ -27,7 +27,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ToastAction } from '@/components/ui/toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
@@ -39,6 +39,82 @@ type SubmissionDetails = {
     location: { latitude: number, longitude: number, accuracy: number } | null;
     image: string | null;
 } | null;
+
+type Status = 'pending' | 'in-progress' | 'success' | 'error';
+
+function StatusIndicator({ status }: { status: Status }) {
+  if (status === 'in-progress') {
+    return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />;
+  }
+  if (status === 'success') {
+    return <CheckCircle className="h-5 w-5 text-green-500" />;
+  }
+  if (status === 'error') {
+    return <AlertTriangleIcon className="h-5 w-5 text-destructive" />;
+  }
+  return <Circle className="h-5 w-5 text-muted-foreground/50" />;
+}
+
+function StatusPanel({
+  locationStatus,
+  cameraStatus,
+  punctualityStatus
+}: {
+  locationStatus: Status,
+  cameraStatus: Status,
+  punctualityStatus: Status,
+}) {
+  const steps = [
+    { 
+      title: 'Verificación de Ubicación', 
+      description: 'Se requiere GPS para confirmar tu centro de trabajo.',
+      status: locationStatus
+    },
+    { 
+      title: 'Verificación Facial', 
+      description: 'Se necesita una foto para validar tu identidad.',
+      status: cameraStatus
+    },
+    { 
+      title: 'Análisis de Puntualidad', 
+      description: 'Nuestra IA te dará un feedback si llegas temprano.',
+      status: punctualityStatus,
+      icon: <Wand2 className="h-5 w-5 text-purple-500" />
+    }
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Panel de Estado del Registro</CardTitle>
+        <CardDescription>Sigue tu progreso en tiempo real.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {steps.map((step, index) => (
+          <React.Fragment key={step.title}>
+            <div className="flex items-start gap-4">
+              <div className="flex h-10 items-center">
+                 {step.icon ? step.icon : <StatusIndicator status={step.status} />}
+              </div>
+              <div>
+                <p className={cn(
+                  "font-semibold",
+                  step.status === 'success' && 'text-green-600',
+                  step.status === 'error' && 'text-destructive',
+                )}>
+                  {step.title}
+                </p>
+                <p className="text-sm text-muted-foreground">{step.description}</p>
+              </div>
+            </div>
+            {index < steps.length - 1 && <Separator />}
+          </React.Fragment>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 export default function RegisterAttendancePage() {
   const { toast } = useToast();
@@ -86,7 +162,6 @@ export default function RegisterAttendancePage() {
 
   // Effect for Geolocation using watchPosition
   useEffect(() => {
-    // Function to stop watching location
     const stopWatching = () => {
       if (locationWatcherId.current !== null) {
         navigator.geolocation.clearWatch(locationWatcherId.current);
@@ -107,7 +182,7 @@ export default function RegisterAttendancePage() {
       }
 
       const timeoutId = setTimeout(() => {
-        if (location) return; // Already got a good location
+        if (location) return; 
         stopWatching();
         setLocationError("Se agotó el tiempo para obtener la ubicación. Inténtalo de nuevo.");
         setIsLocating(false);
@@ -121,17 +196,17 @@ export default function RegisterAttendancePage() {
               if (accuracy <= ACCEPTABLE_ACCURACY_METERS) {
                   setLocation({ latitude, longitude, accuracy });
                   setLocationError(null);
-                  setIsLocating(false); // Stop showing the main "locating" spinner
-                  clearTimeout(timeoutId); // Clear the timeout as we succeeded
-                  stopWatching(); // We have a good location, so we can stop watching
+                  setIsLocating(false);
+                  clearTimeout(timeoutId); 
+                  stopWatching(); 
               } else {
-                 if(!location) { // Only show this message if we don't have a good location yet.
+                 if(!location) { 
                     setLocationError(`Mejorando precisión...`);
                  }
               }
           },
           (error) => {
-            clearTimeout(timeoutId); // Clear the timeout on error
+            clearTimeout(timeoutId); 
             switch (error.code) {
               case error.PERMISSION_DENIED:
                 setLocationError("Permiso de ubicación denegado. Es necesario para registrar la asistencia.");
@@ -149,20 +224,17 @@ export default function RegisterAttendancePage() {
             setIsLocating(false);
             setCurrentAccuracy(null);
             setLocation(null);
-            stopWatching(); // Stop on error
+            stopWatching(); 
           },
           { 
             enableHighAccuracy: true, 
-            timeout: 10000, // Timeout for each individual update attempt
+            timeout: 10000, 
             maximumAge: 0 
           }
       );
     } else {
-      // Clean up watcher if we move to another step
       stopWatching();
     }
-
-    // Main cleanup function for when the component unmounts
     return () => {
         stopWatching();
     };
@@ -192,6 +264,8 @@ export default function RegisterAttendancePage() {
   useEffect(() => {
     async function setupCamera() {
       if (step !== 2 || capturedImage) return;
+
+      setHasCameraPermission(null);
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error('Camera API not supported');
@@ -223,13 +297,11 @@ export default function RegisterAttendancePage() {
 
     setupCamera();
 
-    // Cleanup function
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, capturedImage]);
 
   const handleCapture = () => {
@@ -244,9 +316,6 @@ export default function RegisterAttendancePage() {
           const dataUrl = canvas.toDataURL('image/png');
           setCapturedImage(dataUrl);
       }
-
-
-      // Stop the video stream after capture
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
         setStream(null);
@@ -256,8 +325,6 @@ export default function RegisterAttendancePage() {
   
   const handleRetake = () => {
      setCapturedImage(null);
-     setHasCameraPermission(null); // Reset to trigger camera setup
-     // The useEffect will automatically re-run and set up the camera
   };
 
   const handleRetryLocation = () => {
@@ -277,7 +344,6 @@ export default function RegisterAttendancePage() {
         };
         setLastSubmission(submissionData);
 
-        // Calculate punctuality
         const now = new Date();
         const [hours, minutes] = appointmentTime.split(':').map(Number);
         const appointmentDateTime = new Date();
@@ -286,7 +352,6 @@ export default function RegisterAttendancePage() {
         const diffMinutes = (appointmentDateTime.getTime() - now.getTime()) / 60000;
 
         if (diffMinutes > 0) {
-            // User is early, call AI flow
             const result = await punctualityAnalysis({ minutesEarly: Math.round(diffMinutes) });
             aiAnalysisToast = result.analysis;
         }
@@ -306,7 +371,6 @@ export default function RegisterAttendancePage() {
           ),
         });
 
-        // Reset state after submission
         setStep(1);
         setAppointmentTime('');
         setWorkCenter('');
@@ -363,6 +427,28 @@ export default function RegisterAttendancePage() {
   const mapLink = lastSubmission?.location 
     ? `https://www.google.com/maps?q=${lastSubmission.location.latitude},${lastSubmission.location.longitude}`
     : '#';
+
+  const getLocationStatus = (): Status => {
+    if (location) return 'success';
+    if (isLocating || locationError?.startsWith('Mejorando')) return 'in-progress';
+    if (locationError) return 'error';
+    return 'pending';
+  }
+
+  const getCameraStatus = (): Status => {
+    if (step === 1) return 'pending';
+    if (capturedImage) return 'success';
+    if (hasCameraPermission === null || stream) return 'in-progress';
+    if (hasCameraPermission === false) return 'error';
+    return 'pending';
+  }
+
+  const getPunctualityStatus = (): Status => {
+    if (step === 1 && appointmentTime) return 'in-progress';
+    if (isSubmitting) return 'in-progress';
+    if (lastSubmission) return 'success';
+    return 'pending';
+  }
 
 
   return (
@@ -492,19 +578,11 @@ export default function RegisterAttendancePage() {
             </Card>
           </div>
           <div className="lg:col-span-1">
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertTitle>Proceso de Registro</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc list-inside space-y-2 mt-2">
-                  <li>Asegúrate de tener buena señal GPS para una ubicación precisa.</li>
-                  <li>Permite el acceso a la cámara y la ubicación en tu navegador.</li>
-                  <li>La foto debe ser clara y tomada en tu centro de trabajo asignado.</li>
-                  <li>Verifica que la hora de tu cita sea la correcta antes de continuar.</li>
-                  <li>Si eres puntual, ¡recibirás un mensaje motivacional de nuestra IA!</li>
-                </ul>
-              </AlertDescription>
-            </Alert>
+             <StatusPanel 
+              locationStatus={getLocationStatus()}
+              cameraStatus={getCameraStatus()}
+              punctualityStatus={getPunctualityStatus()}
+             />
           </div>
         </div>
          <DialogContent>
