@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, collection, getDoc, increment } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, getDoc, increment } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -75,7 +75,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
       const batch = writeBatch(firestore);
       
-      const newCompanyRef = doc(collection(firestore, 'companies'));
+      const newCompanyRef = doc(firestore, 'companies', user.uid); // Use user's UID for company ID for simplicity
+
       const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Miembro': 0 };
 
       if (plan === 'basic') {
