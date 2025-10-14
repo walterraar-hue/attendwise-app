@@ -39,7 +39,7 @@ export default function LoginPage() {
 
   const activatePendingUser = async (authUser: FirebaseAuthUser) => {
     if (!firestore) return;
-    // Find the user document that is 'pending' and matches the email.
+  
     const usersRef = collection(firestore, "users");
     const q = query(usersRef, where("email", "==", authUser.email), where("status", "==", "pending"));
     
@@ -47,26 +47,20 @@ export default function LoginPage() {
     
     if (!querySnapshot.empty) {
         const pendingUserDoc = querySnapshot.docs[0];
-        const companyId = pendingUserDoc.data().companyId;
         const userDocRef = doc(firestore, "users", pendingUserDoc.id);
+        const companyRef = doc(firestore, "companies", pendingUserDoc.data().companyId);
 
         try {
-            // Use a batch to ensure atomicity
-            const batch = writeBatch(firestore);
-
-            // Activate the user and stamp the Auth UID
-            batch.update(userDocRef, {
+            // STEP 1: Activate the user. This is allowed by security rules.
+            await updateDoc(userDocRef, {
                 status: "active",
-                id: authUser.uid, // This is the crucial step
+                id: authUser.uid, // Stamp the official Auth UID
             });
 
-            // Increment the company's used slots
-            const companyRef = doc(firestore, 'companies', companyId);
-            batch.update(companyRef, {
+            // STEP 2: Increment the company's used slots. This is also allowed.
+            await updateDoc(companyRef, {
                 usedSlots: increment(1)
             });
-
-            await batch.commit();
 
             toast({
                 title: "¡Cuenta Activada!",
@@ -75,13 +69,11 @@ export default function LoginPage() {
             
         } catch (error: any) {
             console.error("Error activating user:", error);
-            // This is where the permission error is likely being thrown
             toast({
                 variant: "destructive",
                 title: "Error de Activación",
                 description: "No se pudo activar tu cuenta. Verifica tus permisos o contacta a soporte.",
             });
-            // Log out the user to prevent being in a weird state
             if (auth) {
                 await auth.signOut();
             }
