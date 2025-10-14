@@ -22,10 +22,13 @@ const workCenters = [
   { id: 'wc-04', name: 'Punto de Venta Plaza Mayor' },
 ];
 
+const ACCEPTABLE_ACCURACY_METERS = 100;
+
 export default function RegisterAttendancePage() {
   const { toast } = useToast();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const locationWatcherId = useRef<number | null>(null);
 
   const [step, setStep] = useState(1);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
@@ -41,50 +44,75 @@ export default function RegisterAttendancePage() {
   const [location, setLocation] = useState<{latitude: number, longitude: number, accuracy: number} | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [currentAccuracy, setCurrentAccuracy] = useState<number | null>(null);
 
-  // Effect for Geolocation
+
+  // Effect for Geolocation using watchPosition
   useEffect(() => {
-    if (step === 1 && !location && !locationError) {
+    if (step === 1) {
       setIsLocating(true);
-      if (!navigator.geolocation) {
+      
+      if (!('geolocation' in navigator)) {
         setLocationError("La geolocalización no es soportada por tu navegador.");
         setIsLocating(false);
         return;
       }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
-          if (accuracy > 100) {
-              setLocationError(`La precisión de la ubicación (${accuracy.toFixed(0)}m) es muy baja. Intenta de nuevo en un lugar con mejor señal.`);
-              setLocation(null);
-          } else {
-              setLocation({ latitude, longitude, accuracy });
-              setLocationError(null);
+      
+      locationWatcherId.current = navigator.geolocation.watchPosition(
+          (position) => {
+              const { latitude, longitude, accuracy } = position.coords;
+              setCurrentAccuracy(accuracy);
+              
+              if (accuracy <= ACCEPTABLE_ACCURACY_METERS) {
+                  setLocation({ latitude, longitude, accuracy });
+                  setLocationError(null);
+                  setIsLocating(false); // We can stop showing the main "locating" spinner
+              } else {
+                if(!location) { // Only show this error if we haven't found a good location yet
+                    setLocationError(`Mejorando precisión... (${accuracy.toFixed(0)}m)`);
+                }
+              }
+          },
+          (error) => {
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                setLocationError("Permiso de ubicación denegado. Es necesario para registrar la asistencia.");
+                break;
+              case error.POSITION_UNAVAILABLE:
+                setLocationError("Información de ubicación no disponible. Revisa tu conexión a internet o señal GPS.");
+                break;
+              case error.TIMEOUT:
+                setLocationError("Se agotó el tiempo para obtener la ubicación.");
+                break;
+              default:
+                setLocationError("Ocurrió un error desconocido al obtener la ubicación.");
+                break;
+            }
+            setIsLocating(false);
+            setCurrentAccuracy(null);
+            setLocation(null);
+          },
+          { 
+            enableHighAccuracy: true, 
+            timeout: 20000, // 20 seconds
+            maximumAge: 0 
           }
-          setIsLocating(false);
-        },
-        (error) => {
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              setLocationError("Permiso de ubicación denegado. Es necesario para registrar la asistencia.");
-              break;
-            case error.POSITION_UNAVAILABLE:
-              setLocationError("Información de ubicación no disponible.");
-              break;
-            case error.TIMEOUT:
-              setLocationError("Se agotó el tiempo para obtener la ubicación.");
-              break;
-            default:
-              setLocationError("Ocurrió un error desconocido al obtener la ubicación.");
-              break;
-          }
-          setIsLocating(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
+    } else {
+      // Clean up watcher if we move to another step
+      if (locationWatcherId.current !== null) {
+        navigator.geolocation.clearWatch(locationWatcherId.current);
+        locationWatcherId.current = null;
+      }
     }
-  }, [step, location, locationError]);
+
+    // Main cleanup function for when the component unmounts
+    return () => {
+      if (locationWatcherId.current !== null) {
+        navigator.geolocation.clearWatch(locationWatcherId.current);
+      }
+    };
+  }, [step]);
 
 
   const handleNextStep = () => {
@@ -99,8 +127,8 @@ export default function RegisterAttendancePage() {
      if (!location) {
         toast({
             variant: "destructive",
-            title: "Ubicación Requerida",
-            description: "No se ha podido obtener tu ubicación. Por favor, verifica los permisos e inténtalo de nuevo.",
+            title: "Ubicación No Verificada",
+            description: "La ubicación aún no es lo suficientemente precisa. Por favor, espera un momento.",
         });
         return;
     }
@@ -219,6 +247,7 @@ export default function RegisterAttendancePage() {
         setHasCameraPermission(null);
         setLocation(null);
         setLocationError(null);
+        setCurrentAccuracy(null);
         
     } catch(error) {
         console.error("Submission error:", error);
@@ -274,13 +303,13 @@ export default function RegisterAttendancePage() {
                        <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/50">
                           <MapPin className="h-5 w-5 text-muted-foreground" />
                           <div className="flex-1">
-                              {isLocating && (
+                              {isLocating && !location && (
                                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                       <Loader2 className="animate-spin h-4 w-4" />
-                                      <span>Obteniendo ubicación...</span>
+                                      <span>Obteniendo ubicación... {currentAccuracy && `(Precisión: ${currentAccuracy.toFixed(0)}m)`}</span>
                                   </div>
                               )}
-                              {locationError && (
+                              {locationError && !location && (
                                   <div className="flex items-center gap-2 text-sm text-destructive">
                                       <AlertTriangleIcon className="h-4 w-4" />
                                       <span>{locationError}</span>
@@ -289,7 +318,7 @@ export default function RegisterAttendancePage() {
                               {location && (
                                   <div className="flex items-center gap-2 text-sm text-green-600">
                                       <CheckCircle className="h-4 w-4" />
-                                      <span>Ubicación obtenida con éxito (precisión: {location.accuracy.toFixed(0)}m).</span>
+                                      <span>Ubicación obtenida con precisión de {location.accuracy.toFixed(0)}m.</span>
                                   </div>
                               )}
                           </div>
@@ -297,8 +326,8 @@ export default function RegisterAttendancePage() {
                     </div>
 
 
-                    <Button className="w-full" onClick={handleNextStep} disabled={isLocating || !!locationError || !location}>
-                      {isLocating ? 'Verificando...' : 'Siguiente'}
+                    <Button className="w-full" onClick={handleNextStep} disabled={!location}>
+                      {isLocating && !location ? 'Verificando Ubicación...' : 'Siguiente'}
                     </Button>
                 </div>
             )}
