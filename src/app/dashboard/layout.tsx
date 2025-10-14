@@ -6,6 +6,50 @@ import { SidebarNav } from "@/components/dashboard/sidebar-nav";
 import { useUser } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { UserNav } from "@/components/dashboard/user-nav";
+import Logo from "@/components/logo";
+import { Button } from "@/components/ui/button";
+import { PanelLeft } from "lucide-react";
+import { useSidebar } from "@/components/ui/sidebar";
+
+function DashboardHeader() {
+  const { user } = useUser();
+  const { toggleSidebar } = useSidebar();
+  
+  if (!user) {
+    return null; // Or a loading skeleton
+  }
+
+  const userProps = {
+      id: user.uid,
+      name: user.displayName || 'No Name',
+      email: user.email || 'No Email',
+      role: 'Global Admin', 
+      status: 'active',
+      avatarUrl: user.photoURL || '',
+  }
+
+  return (
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-primary px-4 text-primary-foreground sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
+       <Button
+        size="icon"
+        variant="ghost"
+        className="md:hidden -ml-2"
+        onClick={toggleSidebar}
+      >
+        <PanelLeft className="h-5 w-5" />
+        <span className="sr-only">Toggle Sidebar</span>
+      </Button>
+      <div className="hidden md:block">
+        <Logo className="text-primary-foreground" logoTextClassName="text-primary-foreground" />
+      </div>
+      <div className="ml-auto flex items-center gap-4">
+        <UserNav user={userProps} />
+      </div>
+    </header>
+  );
+}
+
 
 export default function DashboardLayout({
   children
@@ -29,10 +73,16 @@ export default function DashboardLayout({
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarNav companyName={"AttendWise"} />
+        <SidebarNav />
       </Sidebar>
       <SidebarInset>
         <div className="flex h-full flex-col">
+          <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-primary px-4 text-primary-foreground sm:hidden">
+             <DashboardHeader />
+          </header>
+           <div className="hidden sm:flex items-center justify-end gap-4 bg-primary text-primary-foreground p-4">
+             <DashboardHeader />
+           </div>
           {children}
         </div>
       </SidebarInset>

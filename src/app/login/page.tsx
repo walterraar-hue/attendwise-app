@@ -85,9 +85,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <Card className="shadow-lg">
           <CardHeader className="items-center text-center">
-            <Logo />
+            <Logo className="text-primary" logoTextClassName="text-foreground" />
             <CardTitle className="font-headline text-2xl">Iniciar Sesión</CardTitle>
-            <CardDescription>Ingresa a tu cuenta de AttendWise.</CardDescription>
+            <CardDescription>Ingresa a tu cuenta de Serlogint Attend.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -126,7 +126,7 @@ export default function LoginPage() {
           </CardContent>
            <CardFooter className="justify-center">
              <p className="text-xs text-muted-foreground">
-               &copy; {new Date().getFullYear()} AttendWise. All rights reserved.
+               &copy; {new Date().getFullYear()} Serlogint Attend. All rights reserved.
              </p>
           </CardFooter>
         </Card>

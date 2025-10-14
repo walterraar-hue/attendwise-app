@@ -18,7 +18,7 @@ export default function RegisterAdminWithPlanPage({ params }: { params: { plan: 
         </Button>
         <Card className="shadow-lg">
           <CardHeader className="items-center text-center">
-            <Logo />
+            <Logo className="text-primary" logoTextClassName="text-foreground" />
             <CardTitle className="font-headline text-2xl">Crear un Nuevo Equipo</CardTitle>
             <CardDescription>
               Estás a punto de registrarte con el plan <Badge variant="secondary" className="capitalize">{params.plan}</Badge>.

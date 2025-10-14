@@ -17,7 +17,7 @@ export default function RegisterMemberPage() {
         </Button>
         <Card className="shadow-lg">
           <CardHeader className="items-center text-center">
-            <Logo />
+            <Logo className="text-primary" logoTextClassName="text-foreground" />
             <CardTitle className="font-headline text-2xl">Unirme a un Equipo</CardTitle>
             <CardDescription>Introduce tus datos y el código de compañía para unirte.</CardDescription>
           </CardHeader>

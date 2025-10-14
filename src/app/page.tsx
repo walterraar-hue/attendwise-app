@@ -11,8 +11,8 @@ export default function WelcomePage() {
       <div className="w-full max-w-md">
         <Card className="shadow-lg">
           <CardHeader className="items-center text-center">
-            <Logo />
-            <CardTitle className="font-headline text-2xl">Bienvenido a AttendWise</CardTitle>
+            <Logo className="text-primary" logoTextClassName="text-foreground" />
+            <CardTitle className="font-headline text-2xl">Bienvenido a Serlogint Attend</CardTitle>
             <CardDescription>Tu solución moderna de asistencia.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -57,7 +57,7 @@ export default function WelcomePage() {
           </CardContent>
            <CardFooter className="justify-center">
              <p className="text-xs text-muted-foreground">
-               &copy; {new Date().getFullYear()} AttendWise. All rights reserved.
+               &copy; {new Date().getFullYear()} Serlogint Attend. All rights reserved.
              </p>
           </CardFooter>
         </Card>

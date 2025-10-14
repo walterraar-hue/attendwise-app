@@ -30,6 +30,7 @@ export function UserNav({ user }: { user: User }) {
     .join("");
   
   const handleLogout = async () => {
+    if (!auth) return;
     await signOut(auth);
     router.push('/login');
   };
@@ -37,10 +38,10 @@ export function UserNav({ user }: { user: User }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-9 w-9">
+        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+          <Avatar className="h-10 w-10 border-2 border-primary-foreground/50">
             <AvatarImage src={user.avatarUrl} alt={user.name} />
-            <AvatarFallback>{initials}</AvatarFallback>
+            <AvatarFallback className="bg-transparent text-primary-foreground">{initials}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>

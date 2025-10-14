@@ -16,24 +16,16 @@ import Logo from '../logo';
 import { Badge } from '../ui/badge';
 
 
-export function SidebarNav({ companyName }: { companyName: string }) {
+export function SidebarNav() {
   const pathname = usePathname();
   const isActive = (path: string) => pathname === path;
   const role = 'admin'; // Show all links
 
   return (
     <>
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 hidden md:flex">
         <div className="flex items-center gap-2">
-            <div className="bg-primary text-primary-foreground p-2 rounded-md">
-                <Timer className="size-5" />
-            </div>
-            <div className="flex flex-col">
-                <span className="font-semibold text-lg">{companyName}</span>
-                <Badge variant="secondary" className="w-fit">
-                    Unified Portal
-                </Badge>
-            </div>
+            <Logo />
         </div>
       </SidebarHeader>
       <SidebarContent>
