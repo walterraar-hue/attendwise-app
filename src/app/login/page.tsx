@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import Link from 'next/link';
@@ -8,16 +6,15 @@ import Logo from '@/components/logo';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useAuth, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, User } from 'firebase/auth';
+import { signInWithEmailAndPassword, type User as FirebaseAuthUser } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, updateDoc, doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 
 
 const loginSchema = z.object({
@@ -26,21 +23,41 @@ const loginSchema = z.object({
 });
 
 // This function will handle the activation logic after a successful login.
-const activatePendingUser = async (user: User, firestore: any): Promise<boolean> => {
-    // Query for a pending user document with the matching email
+const activatePendingUser = async (user: FirebaseAuthUser, firestore: any): Promise<boolean> => {
     const userDocRef = doc(firestore, "users", user.uid);
-
+    
     try {
-        await updateDoc(userDocRef, { 
-            status: 'active',
-        });
+        const userDoc = await getDoc(userDocRef);
+
+        if (userDoc.exists() && userDoc.data().status === 'pending') {
+            const companyId = userDoc.data().companyId;
+            if (!companyId) {
+              console.error("Pending user is missing companyId.");
+              return false;
+            }
+            
+            const companyDocRef = doc(firestore, "companies", companyId);
+
+            // Sequential writes to avoid batch permission issues.
+            // 1. Activate the user.
+            await updateDoc(userDocRef, { 
+                status: 'active'
+            });
+
+            // 2. Increment the company's used slots.
+            await updateDoc(companyDocRef, {
+                usedSlots: increment(1)
+            });
+
+            return true; // The user was pending and is now active.
+        }
         
-        return true;
+        return false; // The user was not pending.
 
     } catch (error) {
-        // If the user document doesn't exist, or there's a permission error, we catch it.
-        console.error("Could not activate user:", error);
-        // We don't re-throw, as it might not be a critical failure for the login itself.
+        console.error("Error activating pending user:", error);
+        // This could be a permission error on the company doc update,
+        // but we'll let the user log in anyway.
         return false; 
     }
 };
@@ -67,7 +84,6 @@ export default function LoginPage() {
       
       const wasActivated = await activatePendingUser(user, firestore);
 
-
       if (wasActivated) {
         toast({
           title: "¡Cuenta Activada!",
@@ -83,11 +99,10 @@ export default function LoginPage() {
       router.push('/dashboard');
 
     } catch (error: any) {
-      // This will catch login errors (e.g., wrong password)
       toast({
         variant: "destructive",
         title: "Fallo en el Inicio de Sesión",
-        description: error.message || "Un error inesperado ocurrió.",
+        description: error.message || "Email o contraseña incorrectos.",
       });
     }
   };
