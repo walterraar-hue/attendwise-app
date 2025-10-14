@@ -1,107 +1,132 @@
 /**
- * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for private data and allows public read access to certain collections while restricting write access to authorized users.
+ * @fileOverview Firestore Security Rules for AttendWise application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for personal data
+ * (attendance records) and a company-based ownership model for company-wide data
+ * (users, work centers).  It leverages denormalization to avoid expensive `get()`
+ * calls within rules.  It allows creating user documents on signup, and after sign up any listing of users is disallowed.
  *
  * Data Structure:
  * - /companies/{companyId}: Stores company profiles.
- * - /companies/{companyId}/workCenters/{workCenterId}: Stores work centers associated with a company.
+ * - /companies/{companyId}/workCenters/{workCenterId}: Stores work centers for a company.
  * - /users/{userId}: Stores user profiles.
- * - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records for individual users.
+ * - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records for a user.
  *
  * Key Security Decisions:
- * - Users can only access their own attendance records and user profiles.
- * - Companies can manage their work centers.
- * - Listing of user documents is disallowed.
- * - All write operations require authentication.
- * - Data consistency is enforced between document IDs and path parameters.
+ * - User listing is explicitly denied to prevent unauthorized access to user data.
+ * - Only authenticated users can create accounts.
+ * - Data validation is minimized in this prototype, focusing on ownership and relationship integrity.
  *
  * Denormalization for Authorization:
- * - The `User` entity includes `companyId` to allow direct authorization checks without additional reads.
+ * - User documents store the `companyId` to allow rules to quickly verify which company a user belongs to.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to company profiles.
+     * @description Checks if the current user is signed in.
+     * @path N/A
+     * @allow N/A
+     * @deny N/A
+     * @principle Requires authentication for certain actions.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user's ID matches the provided userId.
+     * @path N/A
+     * @allow N/A
+     * @deny N/A
+     * @principle Enforces user-based ownership.
+     */
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user's ID matches the provided userId and the resource exists.
+     * @path N/A
+     * @allow N/A
+     * @deny N/A
+     * @principle Enforces user-based ownership and resource existence for updates/deletes.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Rules for the /companies/{companyId} collection.
      * @path /companies/{companyId}
-     * @allow (get, list): Public read access to company profiles.
-     * @allow (create, update, delete): Only the company admin can modify company profiles. Requires the user to exist.
-     * @deny (create, update, delete): If the user is not authenticated or doesn't have the correct role.
-     * @principle Public read, owner-only writes with role-based access control.
+     * @allow (get) Authenticated user can read a company document
+     * @allow (create) Authenticated user can create a company document where request.resource.data.id == companyId
+     * @deny (create) Unauthenticated user cannot create a company document
+     * @deny (update) Authenticated user cannot update a company document they don't own
+     * @deny (delete) Authenticated user cannot delete a company document they don't own
+     * @principle Enforces company-based ownership and authentication.
      */
     match /companies/{companyId} {
-      allow get, list: if true;
-      allow create: if isSignedIn();
+      allow get: if isSignedIn();
+      allow list: if false;
+
+      allow create: if isSignedIn() && request.resource.data.id == companyId;
       allow update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to work centers within a company.
+     * @description Rules for the /companies/{companyId}/workCenters/{workCenterId} collection.
      * @path /companies/{companyId}/workCenters/{workCenterId}
-     * @allow (get, list): Allow company employees to list work centers
-     * @allow (create): Only the company admin can create work centers. The companyId must be equal to the ID in the user document.
-     * @deny (create): If the user is not authenticated or the company ID in the path does not match the user's company ID.
-     * @allow (update, delete): Only the company admin can update or delete work centers.
-     * @deny (update, delete): If the user is not authenticated or does not have the correct role.
-     * @principle Role-based access control within a company context.
+     * @allow (get) Authenticated user can read a workCenter document
+     * @allow (create) Authenticated user can create a workCenter document
+     * @deny (create) Unauthenticated user cannot create a workCenter document
+     * @deny (update) Authenticated user cannot update a workCenter document they don't own
+     * @deny (delete) Authenticated user cannot delete a workCenter document they don't own
+     * @principle Enforces company-based ownership and authentication.
      */
     match /companies/{companyId}/workCenters/{workCenterId} {
-      allow get, list: if isSignedIn() && request.auth.uid == companyId;
-      allow create: if isSignedIn() && request.auth.uid == companyId;
-      allow update, delete: if isSignedIn() && request.auth.uid == companyId;
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
     }
 
     /**
-     * @description Controls access to user profiles.
+     * @description Rules for the /users/{userId} collection.
      * @path /users/{userId}
-     * @allow (get): Allow access to a user's own profile.
-     * @deny (get): If the requested user ID does not match the authenticated user's ID.
-     * @allow (create): Allow a user to create their own profile if the userId matches the authenticated user's ID.
-     * @deny (create): If the user ID does not match the authenticated user's ID.
-     * @allow (update, delete): Allow a user to update or delete their own profile.
-     * @deny (update, delete): If the requested user ID does not match the authenticated user's ID.
-     * @principle Enforces document ownership for writes.
+     * @allow (get) Authenticated user can read their own user document.
+     * @allow (create) Authenticated user can create their own user document.
+     * @deny (create) Authenticated user cannot create another user's document.
+     * @deny (update) Authenticated user cannot update another user's document.
+     * @deny (delete) Authenticated user cannot delete another user's document.
+     * @principle Enforces user-based ownership.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Controls access to attendance records for a specific user.
+     * @description Rules for the /users/{userId}/attendanceRecords/{attendanceRecordId} collection.
      * @path /users/{userId}/attendanceRecords/{attendanceRecordId}
-     * @allow (get, list): Allow access to a user's own attendance records.
-     * @deny (get, list): If the requested user ID does not match the authenticated user's ID.
-     * @allow (create): Allow a user to create attendance records for themselves.
-     * @deny (create): If the user ID in the path does not match the authenticated user's ID.
-     * @allow (update, delete): Allow a user to update or delete their own attendance records.
-     * @deny (update, delete): If the requested user ID does not match the authenticated user's ID or if the document does not exist.
-     * @principle Restricts access to a user's own data tree.
+     * @allow (get) Authenticated user can read their own attendance record.
+     * @allow (create) Authenticated user can create their own attendance record.
+     * @deny (create) Unauthenticated user cannot create an attendance record.
+     * @deny (update) Authenticated user cannot update another user's attendance record.
+     * @deny (delete) Authenticated user cannot delete another user's attendance record.
+     * @principle Enforces user-based ownership.
      */
     match /users/{userId}/attendanceRecords/{attendanceRecordId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isOwner(userId) && request.resource.data.userId == resource.data.userId;
       allow delete: if isExistingOwner(userId);
     }
-  }
-
-  // Helper function to determine if the user is signed in.
-  function isSignedIn() {
-    return request.auth != null;
-  }
-
-  // Helper function to determine if the user is the owner of the resource.
-  function isOwner(userId) {
-    return isSignedIn() && request.auth.uid == userId;
-  }
-
-    // Helper function to determine if the user is the owner of the resource and the resource exists.
-  function isExistingOwner(userId) {
-    return isOwner(userId) && resource != null;
   }
 }

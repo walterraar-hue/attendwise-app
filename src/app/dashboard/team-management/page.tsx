@@ -1,7 +1,4 @@
 
-
-
-
 'use client'
 
 import Header from "@/components/dashboard/header";
@@ -9,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Copy, Users, Star, User as UserIcon, Crown, UserCog } from "lucide-react";
+import { Copy, Users, Star, User as UserIcon, Crown } from "lucide-react";
 import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { collection, query, where, doc } from "firebase/firestore";
@@ -167,7 +164,7 @@ export default function TeamManagementPage() {
         if (!user || !firestore) return null;
         return doc(firestore, 'users', user.uid);
     }, [user, firestore]);
-    const { data: userData, isLoading: isUserLoading } = useDoc(userDocRef);
+    const { data: userData, isLoading: isUserLoading } = useDoc<User>(userDocRef);
 
     const companyId = userData?.companyId;
 
@@ -247,3 +244,5 @@ export default function TeamManagementPage() {
     </div>
   );
 }
+
+    
