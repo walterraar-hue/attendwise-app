@@ -1,5 +1,4 @@
 
-
 'use client';
 import { Clock, AlertTriangle, UserCheck, UserX, ArrowRight, ClipboardCheck, History, Users, Settings, BarChartHorizontal } from 'lucide-react';
 import Header from '@/components/dashboard/header';
@@ -11,6 +10,8 @@ import type { User as AppUser } from '@/lib/types';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
+import { getMotivationalMessage } from '@/ai/flows/motivational-message-flow';
 
 
 const QUICK_ACTIONS = {
@@ -96,6 +97,8 @@ icon: Users
 export default function DashboardPage() {
   const { user } = useUser();
   const firestore = useFirestore();
+  const [motivationalMessage, setMotivationalMessage] = useState('');
+  const [isMessageLoading, setIsMessageLoading] = useState(true);
 
   const userDocRef = useMemoFirebase(() => {
       if (!user || !firestore) return null;
@@ -106,6 +109,27 @@ export default function DashboardPage() {
   const userRole = userData?.role || 'Miembro';
   const userName = userData?.name?.split(' ')[0] || 'Usuario';
   const relevantActions = QUICK_ACTIONS[userRole] || QUICK_ACTIONS['Miembro'];
+
+  useEffect(() => {
+    if (userName && userName !== 'Usuario') {
+      setIsMessageLoading(true);
+      getMotivationalMessage({ userName })
+        .then(result => {
+          setMotivationalMessage(result.message);
+        })
+        .catch(err => {
+          console.error("Failed to get motivational message:", err);
+          setMotivationalMessage("¿Qué te gustaría hacer hoy?"); // Fallback message
+        })
+        .finally(() => {
+          setIsMessageLoading(false);
+        });
+    } else if (!isLoading) {
+        setMotivationalMessage("¿Qué te gustaría hacer hoy?");
+        setIsMessageLoading(false);
+    }
+  }, [userName, isLoading]);
+
 
   if (isLoading) {
     return (
@@ -125,7 +149,11 @@ export default function DashboardPage() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">¡Hola de nuevo, <span className="text-primary">{userName}</span>!</h1>
-        <p className="text-muted-foreground">¿Qué te gustaría hacer hoy?</p>
+        {isMessageLoading ? (
+            <Skeleton className="h-6 w-2/3 mt-1" />
+        ) : (
+            <p className="text-muted-foreground">{motivationalMessage}</p>
+        )}
       </div>
 
       <div className="grid gap-6 mt-8 md:grid-cols-2 lg:grid-cols-3">
