@@ -56,6 +56,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   const auth = useAuth();
   const firestore = useFirestore();
   const [isLoading, setIsLoading] = useState(false);
+  const [companyCodeError, setCompanyCodeError] = useState<string | null>(null);
 
   const isMemberFlow = mode === 'member';
 
@@ -142,6 +143,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
+    setCompanyCodeError(null);
     if (!firestore || !auth) {
         toast({ title: "Error", description: "Servicios de Firebase no disponibles.", variant: "destructive" });
         setIsLoading(false);
@@ -150,28 +152,26 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
     let userCredential;
     try {
-        // 1. Create user in Auth first to get a UID
-        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
-
-        // 2. Now that user is authenticated, validate company code and slots
         const companyRef = doc(firestore, "companies", values.companyCode);
         const companySnap = await getDoc(companyRef);
 
         if (!companySnap.exists()) {
-            throw new Error("El código de compañía no es válido.");
+            setCompanyCodeError("El código de compañía no es válido. Por favor, verifica e inténtalo de nuevo.");
+            setIsLoading(false);
+            return;
         }
+
+        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
 
         const companyData = companySnap.data();
         
-        // 2a. Check if the role is even available in the plan
         const roleLimit = companyData.roleLimits?.[values.role];
 
         if (roleLimit === undefined || roleLimit === 0) {
-            throw new Error(`El rol seleccionado no está disponible en el plan de esta compañía. Por favor, contacta a tu administrador.`);
+            throw new Error(`El rol '${values.role}' no está disponible en el plan de esta compañía. Por favor, contacta a tu administrador.`);
         }
 
-        // 2b. If the role is available, check if there are open slots
         const usersQuery = query(collection(firestore, 'users'), where('companyId', '==', values.companyCode), where('role', '==', values.role));
         const usersSnap = await getDocs(usersQuery);
         const currentRoleCount = usersSnap.size;
@@ -180,7 +180,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
              throw new Error(`No hay cupos disponibles para el rol de ${values.role}. Por favor, contacta a tu administrador.`);
         }
         
-        // 3. If validation passes, commit user data to Firestore
         const batch = writeBatch(firestore);
 
         const userDocRef = doc(firestore, "users", user.uid);
@@ -195,12 +194,9 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             createdAt: serverTimestamp(),
         });
         
-        // Only increment usedSlots for member-like roles
-        if (values.role === 'Miembro' || values.role === 'Manager') {
-             batch.update(companyRef, {
-                usedSlots: increment(1)
-            });
-        }
+        batch.update(companyRef, {
+            usedSlots: increment(1)
+        });
         
         await batch.commit();
 
@@ -211,7 +207,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         router.push('/dashboard');
 
     } catch (error: any) {
-        // If user was created in Auth but Firestore operations failed, delete the Auth user to allow retry
         if (userCredential) {
             await deleteUser(userCredential.user).catch(delErr => {
               console.error("Cleanup Error: Failed to delete orphaned auth user.", delErr);
@@ -291,6 +286,9 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
                     <Input placeholder="Pega el código que te dio tu administrador" {...field} />
                   </FormControl>
                   <FormMessage />
+                  {companyCodeError && (
+                    <p className="text-sm font-medium text-destructive">{companyCodeError}</p>
+                  )}
                 </FormItem>
               )}
             />
@@ -337,3 +335,5 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
+
+    
