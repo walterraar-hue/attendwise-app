@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, collection, setDoc } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, collection, setDoc, getDoc, increment } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,23 +23,26 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import type { UserRole } from "@/lib/types";
 
 
 const memberSchema = z.object({
-  name: z.string().min(2, "Please enter your full name."),
-  email: z.string().email("Please enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters long."),
+  name: z.string().min(2, "Por favor, introduce tu nombre completo."),
+  email: z.string().email("Por favor, introduce un email válido."),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
+  companyCode: z.string().min(1, "El código de compañía es requerido."),
 });
 
-
 const adminSchema = z.object({
-  name: z.string().min(2, "Please enter your full name."),
-  email: z.string().email("Please enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters long."),
+  name: z.string().min(2, "Por favor, introduce tu nombre completo."),
+  companyName: z.string().min(2, "Por favor, introduce el nombre de tu compañía."),
+  email: z.string().email("Por favor, introduce un email válido."),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
 });
 
 function SubmitButton({ mode, isLoading }: { mode: "admin" | "member", isLoading: boolean }) {
-  const text = mode === "admin" ? "Crear Equipo" : "Crear Cuenta";
+  const text = mode === "admin" ? "Crear Equipo" : "Crear Cuenta y Unirme";
   return (
     <Button type="submit" className="w-full" disabled={isLoading}>
       {isLoading ? <Loader2 className="animate-spin" /> : text}
@@ -59,8 +62,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   const form = useForm({
     resolver: zodResolver(isMemberFlow ? memberSchema : adminSchema),
     defaultValues: isMemberFlow
-      ? { name: "", email: "", password: "" }
-      : { name: "", email: "", password: "" },
+      ? { name: "", email: "", password: "", companyCode: "" }
+      : { name: "", companyName: "", email: "", password: "" },
   });
 
   const handleAdminSubmit = async (values: z.infer<typeof adminSchema>) => {
@@ -91,13 +94,13 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           roleLimits['Global Admin'] = 1;
           roleLimits['CEO'] = 1;
           roleLimits['Operations Manager'] = 2;
+          roleLimits['Manager'] = 5;
           roleLimits['Miembro'] = -1; 
-          roleLimits['Manager'] = 0;
       }
 
       batch.set(newCompanyRef, {
         id: newCompanyRef.id,
-        name: `${values.name}'s Company`,
+        name: values.companyName,
         subscriptionPlan: plan,
         usedSlots: 1,
         createdAt: serverTimestamp(),
@@ -107,6 +110,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       const userDocRef = doc(firestore, 'users', user.uid);
       batch.set(userDocRef, {
         id: user.uid,
+        uid: user.uid,
         companyId: newCompanyRef.id,
         email: values.email,
         name: values.name,
@@ -137,38 +141,79 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   };
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
-    setIsLoading(true);
-    if (!auth) {
-        toast({
-            variant: "destructive",
-            title: "Error de Autenticación",
-            description: "El servicio de autenticación no está disponible.",
-        });
-        setIsLoading(false);
-        return;
-    }
+      setIsLoading(true);
+      if (!firestore || !auth) {
+          toast({ title: "Error", description: "Servicios de Firebase no disponibles.", variant: "destructive" });
+          setIsLoading(false);
+          return;
+      }
 
-    try {
-        await createUserWithEmailAndPassword(auth, values.email, values.password);
+      try {
+          // Step 1: Create the user in Firebase Auth
+          const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+          const user = userCredential.user;
 
-        toast({
-            title: "¡Cuenta Creada!",
-            description: "Tu cuenta ha sido creada. Por favor, inicia sesión para activarla y unirte a tu equipo.",
-        });
-        router.push("/login");
+          // Step 2: Now that the user is authenticated, validate the company and slots
+          const companyRef = doc(firestore, "companies", values.companyCode);
+          const companySnap = await getDoc(companyRef);
 
-    } catch (error: any) {
-        let errorMessage = "No se pudo crear la cuenta.";
-        if (error.code === 'auth/email-already-in-use') {
-          errorMessage = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
-        } else {
-            console.error("Member Registration Error:", error);
-            errorMessage = error.message || errorMessage;
-        }
-        toast({ title: "Error de Registro", description: errorMessage, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
+          if (!companySnap.exists()) {
+              throw new Error("El código de compañía no es válido.");
+          }
+
+          const companyData = companySnap.data();
+          const memberLimit = companyData.roleLimits?.['Miembro'] ?? 0;
+          const managerLimit = companyData.roleLimits?.['Manager'] ?? 0;
+          const totalLimit = (memberLimit === -1 || managerLimit === -1) ? Infinity : memberLimit + managerLimit;
+
+          if (totalLimit !== Infinity && companyData.usedSlots >= totalLimit) {
+              throw new Error("La compañía ha alcanzado su límite de usuarios.");
+          }
+
+          // Step 3: If validation passes, create the user document and update company slots
+          const batch = writeBatch(firestore);
+
+          const userDocRef = doc(firestore, "users", user.uid);
+          batch.set(userDocRef, {
+              id: user.uid,
+              uid: user.uid,
+              companyId: values.companyCode,
+              email: values.email,
+              name: values.name,
+              role: 'Miembro', // Default role for new members
+              status: 'active',
+              createdAt: serverTimestamp(),
+          });
+          
+          batch.update(companyRef, {
+              usedSlots: increment(1)
+          });
+          
+          await batch.commit();
+
+          toast({
+              title: "¡Registro Completo!",
+              description: "Tu cuenta ha sido creada y activada. ¡Bienvenido!",
+          });
+          router.push('/dashboard');
+
+      } catch (error: any) {
+          let errorMessage = "No se pudo crear la cuenta.";
+          if (error.code === 'auth/email-already-in-use') {
+              errorMessage = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
+          } else if (error.message.includes("código de compañía")) {
+              errorMessage = error.message;
+          } else if (error.message.includes("límite de usuarios")) {
+              errorMessage = error.message;
+          }
+          else {
+              console.error("Member Registration Error:", error);
+              errorMessage = "Ocurrió un error: " + error.message;
+          }
+          toast({ title: "Error de Registro", description: errorMessage, variant: "destructive" });
+      } finally {
+          setIsLoading(false);
+      }
   };
 
 
@@ -191,12 +236,29 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
               </FormItem>
             )}
           />
+        
+        {!isMemberFlow && (
+            <FormField
+                control={form.control}
+                name="companyName"
+                render={({ field }) => (
+                <FormItem>
+                    <FormLabel>Nombre de la Compañía</FormLabel>
+                    <FormControl>
+                    <Input placeholder="Mi Compañía Inc." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                </FormItem>
+                )}
+            />
+        )}
+        
         <FormField
           control={form.control}
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
+              <FormLabel>Email de la Cuenta</FormLabel>
               <FormControl>
                 <Input placeholder="tu@email.com" {...field} />
               </FormControl>
@@ -204,11 +266,23 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             </FormItem>
           )}
         />
+        
         {isMemberFlow && (
-          <p className="text-sm text-muted-foreground pt-2">
-              Tu administrador de equipo ya te ha asignado un rol y un código de compañía. Simplemente crea tu cuenta y serás añadido automáticamente al iniciar sesión.
-          </p>
+           <FormField
+            control={form.control}
+            name="companyCode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Código de la Compañía</FormLabel>
+                <FormControl>
+                  <Input placeholder="Pega el código que te dio tu administrador" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         )}
+
         <FormField
           control={form.control}
           name="password"
