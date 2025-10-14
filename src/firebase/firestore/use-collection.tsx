@@ -64,7 +64,7 @@ export function useCollection<T = any>(
   useEffect(() => {
     // If the query is not ready, set a loading state and wait.
     if (!memoizedTargetRefOrQuery) {
-      setIsLoading(true);
+      setIsLoading(false);
       setData(null);
       setError(null);
       return;
@@ -89,7 +89,7 @@ export function useCollection<T = any>(
         const path: string =
           'path' in memoizedTargetRefOrQuery
             ? (memoizedTargetRefOrQuery as CollectionReference).path
-            : (memoizedTargetRefOrQuery as InternalQuery)._query.path.canonicalString();
+            : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
 
         const contextualError = new FirestorePermissionError({
           operation: 'list',

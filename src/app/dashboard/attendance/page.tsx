@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Header from "@/components/dashboard/header";
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where, doc, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, doc, getDocs, orderBy, FirestoreError } from 'firebase/firestore';
 import type { AttendanceRecord, WorkCenter, User as AppUser } from '@/lib/types';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Building, User as UserIcon, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type AggregatedRecord = AttendanceRecord & { userName: string; userEmail: string };
 
@@ -26,6 +26,7 @@ export default function AttendancePage() {
 
   const [allRecords, setAllRecords] = useState<AggregatedRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [globalError, setGlobalError] = useState<string | null>(null);
 
   // 1. Get current user's data to find companyId and role
   const userDocRef = useMemoFirebase(() => {
@@ -49,21 +50,25 @@ export default function AttendancePage() {
     return query(collection(firestore, 'users'), where('companyId', '==', companyId));
   }, [companyId, firestore]);
   const { data: companyUsers, isLoading: areUsersLoading, error: usersError } = useCollection<AppUser>(companyUsersQuery);
-  const userMap = useMemo(() => {
-      if (!companyUsers) return new Map();
-      return new Map(companyUsers.map(u => [u.id, { name: u.name, email: u.email }]));
-  }, [companyUsers]);
 
   // 4. Fetch all attendance records for all users
   useEffect(() => {
-    if (!companyUsers || companyUsers.length === 0 || !firestore) {
-        if (!areUsersLoading) setIsLoading(false);
+    if (usersError) {
+      setGlobalError(usersError.message);
+      setIsLoading(false);
+      return;
+    }
+
+    if (!companyUsers || !firestore) {
+        if (!areUsersLoading && !isUserLoading) setIsLoading(false);
         return;
     }
 
     const fetchAllRecords = async () => {
       setIsLoading(true);
+      setGlobalError(null);
       const records: AggregatedRecord[] = [];
+      let permissionErrorOccurred = false;
       
       for (const member of companyUsers) {
         try {
@@ -71,18 +76,23 @@ export default function AttendancePage() {
             const attendanceSnap = await getDocs(query(attendanceRef, orderBy('checkInTimestamp', 'desc')));
             attendanceSnap.forEach(doc => {
               const docData = doc.data() as AttendanceRecord;
-              if (docData.checkInTimestamp && typeof docData.checkInTimestamp.toDate === 'function') {
-                  records.push({ 
-                    ...docData,
-                    id: doc.id,
-                    userName: member.name,
-                    userEmail: member.email,
-                  });
-              }
+              records.push({ 
+                ...docData,
+                id: doc.id,
+                userName: member.name,
+                userEmail: member.email,
+              });
             });
         } catch (e) {
+            if (e instanceof FirestoreError && (e.code === 'permission-denied' || e.code === 'unauthenticated')) {
+              permissionErrorOccurred = true;
+            }
             console.error(`Could not fetch attendance for user ${member.id}:`, e);
         }
+      }
+      
+      if (permissionErrorOccurred) {
+        setGlobalError("No tienes permisos para ver los registros de asistencia de todos los miembros. Por favor, contacta a tu administrador para ajustar las reglas de seguridad de Firestore y permitir que los administradores lean los registros de otros usuarios.");
       }
       
       records.sort((a, b) => {
@@ -96,7 +106,7 @@ export default function AttendancePage() {
     };
 
     fetchAllRecords();
-  }, [companyUsers, firestore, areUsersLoading]);
+  }, [companyUsers, firestore, areUsersLoading, isUserLoading, usersError]);
 
   // 5. Fetch work centers for names
   const workCentersQuery = useMemoFirebase(() => {
@@ -130,24 +140,18 @@ export default function AttendancePage() {
     );
   }
   
-  if (usersError) {
-     return (
-        <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-            <div className="max-w-4xl mx-auto">
-                <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                        Error de permisos: No se pueden cargar los miembros del equipo. Por favor, contacta al administrador para ajustar las reglas de seguridad de Firestore.
-                    </AlertDescription>
-                </Alert>
-            </div>
-        </div>
-    )
-  }
-
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <Header title="Asistencia del Equipo" />
+
+       {globalError && (
+          <Alert variant="destructive" className="max-w-4xl mx-auto">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error de Permisos</AlertTitle>
+              <AlertDescription>{globalError}</AlertDescription>
+          </Alert>
+       )}
+
       <Card>
         <CardHeader>
           <CardTitle>Todos los Registros</CardTitle>
@@ -225,7 +229,7 @@ export default function AttendancePage() {
                     ) : (
                         <TableRow>
                             <TableCell colSpan={7} className="h-24 text-center">
-                                No hay registros de asistencia en el equipo todavía.
+                                {!globalError && "No hay registros de asistencia en el equipo todavía."}
                             </TableCell>
                         </TableRow>
                     )}
