@@ -86,7 +86,7 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
       
       toast({
         title: "Rol Asignado Exitosamente",
-        description: `El rol de ${user.name} ha sido establecido como ${newRole} y ya no podrá ser modificado.`,
+        description: `El rol de ${user.name} ha sido establecido como ${newRole}. Una vez asignado, no podrá ser modificado.`,
       });
 
     } catch (error) {
@@ -147,25 +147,6 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger disabled={user.isRoleLocked}>
-                        <UserCog className="mr-2 h-4 w-4" />
-                        Cambiar Rol
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        {availableRoles.map(role => (
-                           <DropdownMenuItem 
-                              key={role} 
-                              onClick={() => handleChangeRole(user, role)}
-                              disabled={user.role === role}
-                           >
-                            <ShieldCheck className="mr-2 h-4 w-4" />
-                            {role}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-red-600">
                       <Trash2 className="mr-2 h-4 w-4" />
                       Desactivar
