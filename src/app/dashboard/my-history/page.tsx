@@ -266,8 +266,8 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
                             {!isLocating && locationError && <p className="text-sm text-destructive">{locationError}</p>}
                         </div>
                     </div>
-                     {!location && locationError ? (
-                       <Button className="w-full" onClick={handleRetryLocation} variant="outline">
+                     {!isLocating && locationError ? (
+                       <Button className="w-full" onClick={handleRetryLocation} variant="outline" disabled={isLocating}>
                          <RefreshCw className="mr-2 h-4 w-4" />
                          Reintentar Ubicación
                        </Button>
