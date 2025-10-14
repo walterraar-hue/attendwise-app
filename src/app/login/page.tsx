@@ -75,7 +75,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md">
-        <Card className="shadow-xl border-t-4 border-primary">
+        <Card className="shadow-xl">
           <CardHeader className="items-center text-center space-y-4">
             <Logo className="text-primary" showSubtitle={true} logoTextClassName="text-foreground" />
             <div className="w-full">
