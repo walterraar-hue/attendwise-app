@@ -195,6 +195,7 @@ export default function AttendancePage() {
           if (result.status === 'fulfilled') {
             aggregatedRecords.push(...result.value);
           } else {
+            // Silently check for permission errors without logging to console
             const error = result.reason;
             if (error instanceof FirestoreError && (error.code === 'permission-denied' || error.code === 'unauthenticated')) {
               permissionErrorOccurred = true;
@@ -457,5 +458,3 @@ export default function AttendancePage() {
     </>
   );
 }
-
-    
