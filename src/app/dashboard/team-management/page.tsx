@@ -14,7 +14,7 @@ import { collection, query, where, doc } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { User, UserRole } from "@/lib/types";
+import type { Company, User, UserRole } from "@/lib/types";
 import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
@@ -173,7 +173,7 @@ export default function TeamManagementPage() {
         if (!companyId || !firestore) return null;
         return doc(firestore, 'companies', companyId);
     }, [companyId, firestore]);
-    const { data: companyData, isLoading: isCompanyLoading } = useDoc(companyDocRef);
+    const { data: companyData, isLoading: isCompanyLoading } = useDoc<Company>(companyDocRef);
 
     const usersQuery = useMemoFirebase(() => {
         if (!companyId || !firestore) return null;
@@ -234,7 +234,11 @@ export default function TeamManagementPage() {
                 <Skeleton className="h-8 w-full" />
             </div>
         ) : (
-            <MembersTable data={companyUsers || []} />
+            <MembersTable 
+                data={companyUsers || []} 
+                company={companyData}
+                users={companyUsers || []}
+            />
         )}
       </div>
 

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import {
@@ -15,7 +16,7 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { User, UserRole, UserStatus } from "@/lib/types";
+import { Company, User, UserRole, UserStatus } from "@/lib/types";
 import { MoreHorizontal, ShieldCheck, Trash2, UserCog } from "lucide-react";
 import { Button } from "../ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator } from "../ui/dropdown-menu";
@@ -37,13 +38,38 @@ const statusColor: Record<UserStatus, string> = {
 
 const availableRoles: UserRole[] = ['CEO', 'Operations Manager', 'Miembro'];
 
-export function MembersTable({ data }: { data: User[] }) {
+export function MembersTable({ data, company, users }: { data: User[], company: Company | null, users: User[] }) {
   const firestore = useFirestore();
   const { toast } = useToast();
 
   const handleChangeRole = async (user: User, newRole: UserRole) => {
-    if (!firestore || !user.id) return;
+    if (!firestore || !user.id || !company) return;
     if (user.role === newRole) return;
+
+    //--- Validation Logic ---
+    const roleLimit = company.roleLimits?.[newRole] ?? 0;
+    
+    if (roleLimit === 0) {
+        toast({
+            variant: "destructive",
+            title: "Rol no disponible",
+            description: `El rol '${newRole}' no está incluido en el plan actual de la compañía.`,
+        });
+        return;
+    }
+
+    if (roleLimit !== -1) { // -1 means unlimited
+        const currentRoleCount = users.filter(u => u.role === newRole).length;
+        if (currentRoleCount >= roleLimit) {
+            toast({
+                variant: "destructive",
+                title: "Cupos Agotados",
+                description: `No hay cupos disponibles para el rol de ${newRole}.`,
+            });
+            return;
+        }
+    }
+    // --- End Validation ---
 
     try {
       const batch = writeBatch(firestore);
@@ -55,10 +81,8 @@ export function MembersTable({ data }: { data: User[] }) {
       const isAdminRoleOld = user.role === 'CEO' || user.role === 'Operations Manager';
 
       if (isAdminRoleNew) {
-        // Add or update the admin role document
         batch.set(adminRoleRef, { admin: true, role: newRole });
       } else if (isAdminRoleOld && !isAdminRoleNew) {
-        // If the user is being demoted from an admin role, delete the admin role doc
         batch.delete(adminRoleRef);
       }
       

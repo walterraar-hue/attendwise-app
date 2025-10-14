@@ -14,7 +14,7 @@ import { collection, query, where, doc } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { User, UserRole } from "@/lib/types";
+import type { Company, User, UserRole } from "@/lib/types";
 import { InviteMemberDialog } from "@/components/dashboard/invite-member-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
@@ -173,7 +173,7 @@ export default function TeamManagementPage() {
         if (!companyId || !firestore) return null;
         return doc(firestore, 'companies', companyId);
     }, [companyId, firestore]);
-    const { data: companyData, isLoading: companyLoading } = useDoc(companyDocRef);
+    const { data: companyData, isLoading: companyLoading } = useDoc<Company>(companyDocRef);
 
     const usersQuery = useMemoFirebase(() => {
         if (!companyId || !firestore) return null;
@@ -189,7 +189,7 @@ export default function TeamManagementPage() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <Header title="Gestión de Equipo" />
-        {companyData && companyUsers && <InviteMemberDialog company={companyData as any} users={companyUsers} />}
+        {companyId && <InviteMemberDialog company={{ id: companyId }} />}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-8">
         {isLoading || !companyData || !companyUsers ? (
@@ -231,7 +231,11 @@ export default function TeamManagementPage() {
         {isLoading || !companyUsers ? (
             <p>Cargando miembros...</p>
         ) : (
-            <MembersTable data={companyUsers || []} />
+            <MembersTable 
+                data={companyUsers || []} 
+                company={companyData}
+                users={companyUsers || []}
+            />
         )}
       </div>
 
