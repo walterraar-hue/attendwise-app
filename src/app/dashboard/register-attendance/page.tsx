@@ -25,7 +25,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { ToastAction } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -143,6 +142,7 @@ export default function RegisterAttendancePage() {
   const [currentAccuracy, setCurrentAccuracy] = useState<number | null>(null);
 
   const [lastSubmission, setLastSubmission] = useState<SubmissionDetails>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
 
   // Fetch user and company data
@@ -361,14 +361,12 @@ export default function RegisterAttendancePage() {
           title: '¡Registro Enviado!',
           description: aiAnalysisToast || 'Tu asistencia ha sido registrada correctamente.',
           action: (
-             <DialogTrigger asChild>
-                <ToastAction altText="Ver Detalles" asChild>
-                    <Button variant="secondary" size="sm">
-                        <Eye className="mr-2" />
-                        Ver Detalles
-                    </Button>
-                </ToastAction>
-            </DialogTrigger>
+            <ToastAction altText="Ver Detalles" asChild>
+                <Button variant="secondary" size="sm" onClick={() => setIsDetailsOpen(true)}>
+                    <Eye className="mr-2" />
+                    Ver Detalles
+                </Button>
+            </ToastAction>
           ),
         });
 
@@ -453,7 +451,7 @@ export default function RegisterAttendancePage() {
 
 
   return (
-    <Dialog>
+    <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
       <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
         <Header title="Registrar Asistencia" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
