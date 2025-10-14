@@ -13,11 +13,106 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Building, User as UserIcon, AlertTriangle } from 'lucide-react';
+import { Building, User as UserIcon, AlertTriangle, LogIn, LogOut, Camera, MapPin, Wand2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogDescription,
+} from "@/components/ui/alert-dialog";
+import Image from 'next/image';
+import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 
 type AggregatedRecord = AttendanceRecord & { userName: string; userEmail: string };
+
+function AttendanceDetailsDialog({ record, workCenterName, isOpen, onClose }: { record: AggregatedRecord | null; workCenterName: string; isOpen: boolean; onClose: () => void; }) {
+  if (!record) return null;
+
+  const checkInMapLink = record.checkInLocation ? `https://www.google.com/maps?q=${record.checkInLocation.latitude},${record.checkInLocation.longitude}` : '#';
+  const checkOutMapLink = record.checkOutLocation ? `https://www.google.com/maps?q=${record.checkOutLocation.latitude},${record.checkOutLocation.longitude}` : '#';
+
+  return (
+    <AlertDialog open={isOpen} onOpenChange={onClose}>
+      <AlertDialogContent className="max-w-2xl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Detalles del Registro de {record.userName}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {`Jornada del ${format(record.checkInTimestamp.toDate(), "eeee, d 'de' MMMM", { locale: es })} en ${workCenterName}.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-4">
+          
+          <div className="space-y-2">
+            {record.aiPunctualityAnalysis && (
+              <div className="p-3 rounded-md bg-purple-50 border border-purple-200">
+                  <h3 className="font-semibold text-sm flex items-center gap-2 text-purple-800"><Wand2 className="size-4" />Análisis de Puntualidad (Entrada)</h3>
+                  <p className="text-purple-700 text-sm mt-1">{record.aiPunctualityAnalysis}</p>
+              </div>
+            )}
+             {record.aiCheckoutAnalysis && (
+              <div className="p-3 rounded-md bg-blue-50 border border-blue-200">
+                  <h3 className="font-semibold text-sm flex items-center gap-2 text-blue-800"><Wand2 className="size-4" />Análisis de Salida</h3>
+                  <p className="text-blue-700 text-sm mt-1">{record.aiCheckoutAnalysis}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Check-in Column */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg flex items-center gap-2"><LogIn className="text-green-500" /> Entrada</h3>
+              <Separator />
+              <p className="text-sm"><span className="font-semibold">Hora Citado:</span> {record.appointmentTime}</p>
+              <p className="text-sm"><span className="font-semibold">Hora Registro:</span> {format(record.checkInTimestamp.toDate(), "p", { locale: es })}</p>
+              <div>
+                <Label className="flex items-center gap-2 mb-1"><Camera className="size-4" /> Foto de Entrada</Label>
+                <div className="rounded-md overflow-hidden border"><Image src={record.checkInImageUrl} alt="Foto de entrada" width={300} height={225} className="w-full h-auto object-cover" /></div>
+              </div>
+              <div>
+                <Label className="flex items-center gap-2 mb-1"><MapPin className="size-4" /> Ubicación de Entrada</Label>
+                <p className="text-xs text-muted-foreground">Precisión: {record.checkInLocation.accuracy.toFixed(0)} metros.</p>
+                <Button variant="link" asChild className="p-0 h-auto text-xs"><a href={checkInMapLink} target="_blank" rel="noopener noreferrer">Ver en Google Maps</a></Button>
+              </div>
+            </div>
+            {/* Check-out Column */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg flex items-center gap-2"><LogOut className="text-red-500" /> Salida</h3>
+              <Separator />
+              {record.checkOutTimestamp ? (
+                <>
+                 {record.appointmentEndTime && <p className="text-sm"><span className="font-semibold">Hora Fin Citado:</span> {record.appointmentEndTime}</p>}
+                 <p className="text-sm"><span className="font-semibold">Hora Registro:</span> {format(record.checkOutTimestamp.toDate(), "p", { locale: es })}</p>
+                  <div>
+                    <Label className="flex items-center gap-2 mb-1"><Camera className="size-4" /> Foto de Salida</Label>
+                    <div className="rounded-md overflow-hidden border"><Image src={record.checkOutImageUrl!} alt="Foto de salida" width={300} height={225} className="w-full h-auto object-cover" /></div>
+                  </div>
+                  <div>
+                    <Label className="flex items-center gap-2 mb-1"><MapPin className="size-4" /> Ubicación de Salida</Label>
+                    <p className="text-xs text-muted-foreground">Precisión: {record.checkOutLocation!.accuracy.toFixed(0)} metros.</p>
+                    <Button variant="link" asChild className="p-0 h-auto text-xs"><a href={checkOutMapLink} target="_blank" rel="noopener noreferrer">Ver en Google Maps</a></Button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">El empleado aún no ha registrado su salida.</p>
+              )}
+            </div>
+          </div>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogAction onClick={onClose}>Cerrar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 
 export default function AttendancePage() {
   const { user } = useUser();
@@ -27,6 +122,7 @@ export default function AttendancePage() {
   const [allRecords, setAllRecords] = useState<AggregatedRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<AggregatedRecord | null>(null);
 
   // 1. Get current user's data to find companyId and role
   const userDocRef = useMemoFirebase(() => {
@@ -141,6 +237,7 @@ export default function AttendancePage() {
   }
   
   return (
+    <>
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <Header title="Asistencia del Equipo" />
 
@@ -171,10 +268,10 @@ export default function AttendancePage() {
                             <TableHead>Empleado</TableHead>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Centro de Trabajo</TableHead>
-                            <TableHead>Entrada (Citado)</TableHead>
                             <TableHead>Entrada (Registro)</TableHead>
                             <TableHead>Salida (Registro)</TableHead>
                             <TableHead>Estado</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -205,9 +302,6 @@ export default function AttendancePage() {
                                 </div>
                             </TableCell>
                             <TableCell>
-                                <div className="font-medium">{record.appointmentTime}</div>
-                            </TableCell>
-                             <TableCell>
                                 {record.checkInTimestamp?.toDate ? (
                                     <div className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
                                 ) : 'N/A'}
@@ -224,6 +318,11 @@ export default function AttendancePage() {
                                     {record.status === 'open' ? 'Abierto' : 'Cerrado'}
                                 </Badge>
                             </TableCell>
+                             <TableCell className="text-right">
+                                <Button variant="outline" size="sm" onClick={() => setSelectedRecord(record)}>
+                                    Ver Detalles
+                                </Button>
+                            </TableCell>
                         </TableRow>
                         ))
                     ) : (
@@ -239,5 +338,15 @@ export default function AttendancePage() {
         </CardContent>
       </Card>
     </div>
+    
+    <AttendanceDetailsDialog
+      isOpen={!!selectedRecord}
+      onClose={() => setSelectedRecord(null)}
+      record={selectedRecord}
+      workCenterName={selectedRecord ? workCenterMap[selectedRecord.workCenterId] || 'N/A' : ''}
+    />
+    </>
   );
 }
+
+    
