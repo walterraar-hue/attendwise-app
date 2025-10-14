@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, setDoc, collection, query, where, getDocs, updateDoc, increment } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, collection, query, where, getDocs, setDoc } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -185,13 +185,12 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         return;
       }
       
-      // Step 2: Just create the user in Firebase Auth.
+      // Step 2: Just create the user in Firebase Auth. The activation will happen on first login.
       await createUserWithEmailAndPassword(auth, values.email, values.password);
-
-      // The rest of the activation will happen on first login.
+      
       toast({
         title: "¡Cuenta Creada!",
-        description: "Tu cuenta ha sido creada. Por favor, inicia sesión para activarla y unirte al equipo.",
+        description: "Tu cuenta ha sido creada. Por favor, inicia sesión para completar la activación.",
       });
       router.push("/login");
 
@@ -203,6 +202,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
         });
       } else {
+        console.error("Member creation error:", error);
         toast({
           title: "Error de Creación",
           description: error.message || "No se pudo crear la cuenta. Verifica tus datos e inténtalo de nuevo.",

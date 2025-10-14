@@ -15,7 +15,7 @@ import { useAuth, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword, User as FirebaseAuthUser } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, increment, writeBatch } from 'firebase/firestore';
 
 
 const loginSchema = z.object({
@@ -38,7 +38,7 @@ export default function LoginPage() {
   });
 
   const activatePendingUser = async (authUser: FirebaseAuthUser) => {
-    // 1. Find the user document that is 'pending' and matches the email.
+    // Find the user document that is 'pending' and matches the email.
     const usersRef = collection(firestore, "users");
     const q = query(usersRef, where("email", "==", authUser.email), where("status", "==", "pending"));
     
@@ -49,19 +49,23 @@ export default function LoginPage() {
         const companyId = pendingUserDoc.data().companyId;
         
         try {
-            // 2. Perform sequential writes
+            // Use a batch to ensure atomicity
+            const batch = writeBatch(firestore);
+
             const userDocRef = doc(firestore, "users", pendingUserDoc.id);
-            // First, activate the user
-            await updateDoc(userDocRef, {
+            // Activate the user and stamp the Auth UID
+            batch.update(userDocRef, {
                 status: "active",
-                id: authUser.uid, // Stamp the Auth UID onto the document
+                id: authUser.uid,
             });
 
-            // Second, increment the company's used slots
+            // Increment the company's used slots
             const companyRef = doc(firestore, 'companies', companyId);
-            await updateDoc(companyRef, {
+            batch.update(companyRef, {
                 usedSlots: increment(1)
             });
+
+            await batch.commit();
 
             toast({
                 title: "¡Cuenta Activada!",
@@ -86,7 +90,7 @@ export default function LoginPage() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       
-      // After successful login, check and activate if pending
+      // After successful login, check and activate if the user was pending
       await activatePendingUser(userCredential.user);
       
       toast({
@@ -97,6 +101,7 @@ export default function LoginPage() {
       router.push('/dashboard');
 
     } catch (error: any) {
+      console.error("Login error:", error);
       toast({
         variant: "destructive",
         title: "Fallo en el Inicio de Sesión",
