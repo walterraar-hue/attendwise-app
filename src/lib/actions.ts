@@ -5,18 +5,21 @@ import { z } from 'zod';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { firebaseConfig } from '@/firebase/config';
 
 const firebaseAdminConfig = {
-  project_id: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  project_id: firebaseConfig.projectId, // Use the projectId from the client config
   client_email: process.env.FIREBASE_CLIENT_EMAIL,
   private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
 };
 
+// Initialize Firebase Admin SDK only if it hasn't been already
 if (!getApps().length) {
   initializeApp({
     credential: cert(firebaseAdminConfig),
   });
 }
+
 
 const adminAuth = getAuth();
 const adminDb = getFirestore();
