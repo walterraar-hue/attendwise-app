@@ -38,6 +38,7 @@ export default function LoginPage() {
   });
 
   const activatePendingUser = async (authUser: FirebaseAuthUser) => {
+    if (!firestore) return;
     // Find the user document that is 'pending' and matches the email.
     const usersRef = collection(firestore, "users");
     const q = query(usersRef, where("email", "==", authUser.email), where("status", "==", "pending"));
@@ -47,16 +48,16 @@ export default function LoginPage() {
     if (!querySnapshot.empty) {
         const pendingUserDoc = querySnapshot.docs[0];
         const companyId = pendingUserDoc.data().companyId;
-        
+        const userDocRef = doc(firestore, "users", pendingUserDoc.id);
+
         try {
             // Use a batch to ensure atomicity
             const batch = writeBatch(firestore);
 
-            const userDocRef = doc(firestore, "users", pendingUserDoc.id);
             // Activate the user and stamp the Auth UID
             batch.update(userDocRef, {
                 status: "active",
-                id: authUser.uid,
+                id: authUser.uid, // This is the crucial step
             });
 
             // Increment the company's used slots
@@ -74,19 +75,31 @@ export default function LoginPage() {
             
         } catch (error: any) {
             console.error("Error activating user:", error);
+            // This is where the permission error is likely being thrown
             toast({
                 variant: "destructive",
                 title: "Error de Activación",
-                description: "No se pudo activar tu cuenta. Por favor, contacta a soporte.",
+                description: "No se pudo activar tu cuenta. Verifica tus permisos o contacta a soporte.",
             });
             // Log out the user to prevent being in a weird state
-            await auth.signOut();
-            throw error; // Re-throw to stop navigation
+            if (auth) {
+                await auth.signOut();
+            }
+            throw error; // Re-throw to be caught by the outer try/catch
         }
     }
   };
 
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
+    if (!auth) {
+        toast({
+            variant: "destructive",
+            title: "Error de Autenticación",
+            description: "El servicio de autenticación no está disponible.",
+        });
+        return;
+    }
+
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       
@@ -105,7 +118,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "Fallo en el Inicio de Sesión",
-        description: error.message || "Email o contraseña incorrectos.",
+        description: error.message?.includes('permission') ? 'Permisos insuficientes para activar la cuenta.' : (error.message || "Email o contraseña incorrectos."),
       });
     }
   };
