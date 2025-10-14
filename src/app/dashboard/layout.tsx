@@ -81,9 +81,9 @@ export default function DashboardLayout({
                 <Sidebar>
                     <SidebarNav />
                 </Sidebar>
-                <SidebarInset className="overflow-y-auto">
+                <main className="flex-1 overflow-y-auto">
                     {children}
-                </SidebarInset>
+                </main>
             </div>
         </div>
     </SidebarProvider>
