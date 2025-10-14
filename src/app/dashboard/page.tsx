@@ -1,3 +1,4 @@
+
 'use client';
 import { Clock, AlertTriangle, UserCheck, UserX } from 'lucide-react';
 import Header from '@/components/dashboard/header';
@@ -6,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import AttendanceSummary from '@/components/dashboard/attendance-summary';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, doc } from 'firebase/firestore';
 import type { Company, User as AppUser, AttendanceRecord } from '@/lib/types';
 import { useDoc } from '@/firebase/firestore/use-doc';
 
@@ -16,35 +17,35 @@ export default function DashboardPage() {
 
   const userDocRef = useMemoFirebase(() => {
       if (!user || !firestore) return null;
-      return firestore ? firestore.collection('users').doc(user.uid) : null;
+      return doc(firestore, 'users', user.uid);
   }, [user, firestore]);
-  // const { data: userData } = useDoc<AppUser>(userDocRef as any);
+  const { data: userData } = useDoc<AppUser>(userDocRef);
 
-  // const companyId = userData?.companyId;
+  const companyId = userData?.companyId;
 
-  // const companyDocRef = useMemoFirebase(() => {
-  //     if (!companyId || !firestore) return null;
-  //     return firestore.collection('companies').doc(companyId);
-  // }, [companyId, firestore]);
-  // const { data: companyData } = useDoc<Company>(companyDocRef as any);
+  const companyDocRef = useMemoFirebase(() => {
+      if (!companyId || !firestore) return null;
+      return doc(firestore, 'companies', companyId);
+  }, [companyId, firestore]);
+  const { data: companyData } = useDoc<Company>(companyDocRef);
 
-  // const usersQuery = useMemoFirebase(() => {
-  //     if (!companyId || !firestore) return null;
-  //     return query(collection(firestore, 'users'), where('companyId', '==', companyId));
-  // }, [companyId, firestore]);
-  // const { data: companyUsers } = useCollection<AppUser>(usersQuery);
+  const usersQuery = useMemoFirebase(() => {
+      if (!companyId || !firestore) return null;
+      return query(collection(firestore, 'users'), where('companyId', '==', companyId));
+  }, [companyId, firestore]);
+  const { data: companyUsers } = useCollection<AppUser>(usersQuery);
 
   // For now, we will use placeholders as we don't have real data.
   const presentToday = 0;
-  const totalEmployees = 0;
+  const totalEmployees = companyUsers?.length || 0;
   const absentToday = 0;
   const lateToday = 0;
   const atRiskPatterns = 0;
-  const role = 'admin'; // default to admin
+  const role = userData?.role === 'Global Admin' ? 'admin' : 'manager';
   const relevantAttendance: AttendanceRecord[] = [];
-  const companyName = "AttendWise";
-  const companyPolicies = "";
-  const isLoading = false;
+  const companyName = companyData?.name || "AttendWise";
+  const companyPolicies = companyData?.policies || "";
+  const isLoading = !userData || !companyData || !companyUsers;
 
 
   return (
