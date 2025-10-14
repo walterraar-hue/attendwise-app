@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, Video, VideoOff } from 'lucide-react';
+import { Camera, VideoOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
+import { Separator } from '@/components/ui/separator';
 
 // Mock data for work centers
 const workCenters = [
@@ -121,86 +122,90 @@ export default function RegisterAttendancePage() {
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <Header title="Registrar Asistencia" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle>Detalles de la Cita</CardTitle>
-            <CardDescription>Completa la información de tu asignación.</CardDescription>
+            <CardTitle>Registro de Ingreso</CardTitle>
+            <CardDescription>Completa los detalles de tu cita y verifica tu asistencia con una foto.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="appointment-time">Hora de la Cita</Label>
-              <Input id="appointment-time" type="time" />
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="appointment-time">Hora de la Cita</Label>
+                <Input id="appointment-time" type="time" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="work-center">Centro de Trabajo</Label>
+                <Select>
+                  <SelectTrigger id="work-center">
+                    <SelectValue placeholder="Selecciona un centro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workCenters.map(center => (
+                      <SelectItem key={center.id} value={center.id}>{center.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="work-center">Centro de Trabajo</Label>
-              <Select>
-                <SelectTrigger id="work-center">
-                  <SelectValue placeholder="Selecciona un centro" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workCenters.map(center => (
-                    <SelectItem key={center.id} value={center.id}>{center.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <Separator />
+
+            <div className="space-y-4">
+                <Label>Verificación por Foto</Label>
+                <div className="aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                  {hasCameraPermission === null && <p>Cargando cámara...</p>}
+                  {hasCameraPermission === false && (
+                    <div className="text-center text-destructive p-4">
+                      <VideoOff className="mx-auto h-12 w-12" />
+                      <p className="mt-2 font-semibold">Cámara no disponible</p>
+                      <p className="text-sm">Revisa los permisos de tu navegador.</p>
+                    </div>
+                  )}
+                  
+                  {hasCameraPermission && (
+                    <div className="relative w-full h-full">
+                      {capturedImage ? (
+                        <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
+                      ) : (
+                        <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
+                      )}
+                    </div>
+                  )}
+                  <canvas ref={canvasRef} className="hidden"></canvas>
+                </div>
+
+                {hasCameraPermission === false && (
+                     <Alert variant="destructive" className="mt-4">
+                      <AlertTitle>Acceso a Cámara Requerido</AlertTitle>
+                      <AlertDescription>
+                        Por favor, permite el acceso a la cámara en la configuración de tu navegador para poder registrar tu asistencia.
+                      </AlertDescription>
+                    </Alert>
+                )}
+
+                <div className="flex justify-center gap-4">
+                    {hasCameraPermission && !capturedImage && (
+                        <Button onClick={handleCapture}>
+                            <Camera className="mr-2 h-4 w-4" />
+                            Tomar Foto
+                        </Button>
+                    )}
+                    {capturedImage && (
+                        <Button onClick={handleRetake} variant="outline">
+                            Tomar de Nuevo
+                        </Button>
+                    )}
+                </div>
             </div>
+
+            <Separator />
+
             <Button className="w-full" onClick={handleSubmit} disabled={!capturedImage}>
               Notificar Ingreso y Enviar
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Verificación por Foto</CardTitle>
-            <CardDescription>Toma una foto en el lugar para verificar tu asistencia.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden">
-              {hasCameraPermission === null && <p>Cargando cámara...</p>}
-              {hasCameraPermission === false && (
-                <div className="text-center text-destructive p-4">
-                  <VideoOff className="mx-auto h-12 w-12" />
-                  <p className="mt-2 font-semibold">Cámara no disponible</p>
-                  <p className="text-sm">Revisa los permisos de tu navegador.</p>
-                </div>
-              )}
-              
-              {hasCameraPermission && (
-                <div className="relative w-full h-full">
-                  {capturedImage ? (
-                    <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
-                  ) : (
-                    <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
-                  )}
-                </div>
-              )}
-              <canvas ref={canvasRef} className="hidden"></canvas>
-            </div>
-
-            {hasCameraPermission === false && (
-                 <Alert variant="destructive" className="mt-4">
-                  <AlertTitle>Acceso a Cámara Requerido</AlertTitle>
-                  <AlertDescription>
-                    Por favor, permite el acceso a la cámara en la configuración de tu navegador para poder registrar tu asistencia.
-                  </AlertDescription>
-                </Alert>
-            )}
-
-            <div className="mt-4 flex justify-center gap-4">
-                {hasCameraPermission && !capturedImage && (
-                    <Button onClick={handleCapture}>
-                        <Camera className="mr-2 h-4 w-4" />
-                        Tomar Foto
-                    </Button>
-                )}
-                {capturedImage && (
-                    <Button onClick={handleRetake} variant="outline">
-                        Tomar de Nuevo
-                    </Button>
-                )}
-            </div>
+            
           </CardContent>
         </Card>
       </div>
