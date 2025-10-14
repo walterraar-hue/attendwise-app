@@ -153,6 +153,10 @@
         "aiCheckoutAnalysis": {
             "type": ["string", "null"],
             "description": "AI-generated analysis of the user's punctuality for the check-out."
+        },
+        "checkOutJustification": {
+          "type": ["string", "null"],
+          "description": "User's justification for an early checkout."
         }
       },
       "required": [

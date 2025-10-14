@@ -56,6 +56,7 @@ export interface AttendanceRecord {
   };
   checkOutImageUrl?: string;
   aiCheckoutAnalysis?: string | null; // AI analysis for checkout
+  checkOutJustification?: string; // Justification for early checkout
   
   // Status of the record
   status: 'open' | 'closed';

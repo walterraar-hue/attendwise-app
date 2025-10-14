@@ -27,12 +27,13 @@ import {
   AlertDialogAction,
   AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
-import { Camera, MapPin, Wand2, LogIn, LogOut, ArrowRight, VideoOff, Loader2, RefreshCw, Building } from 'lucide-react';
+import { Camera, MapPin, Wand2, LogIn, LogOut, ArrowRight, VideoOff, Loader2, RefreshCw, Building, MessageSquareWarning } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { checkoutPunctualityAnalysis } from '@/ai/flows/checkout-punctuality-analysis';
+import { Textarea } from '@/components/ui/textarea';
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
 const LOCATION_TIMEOUT_MS = 20000; // 20 seconds
@@ -67,6 +68,12 @@ function AttendanceDetailsDialog({ record, workCenterName, isOpen, onClose }: { 
                   <h3 className="font-semibold text-sm flex items-center gap-2 text-blue-800"><Wand2 className="size-4" />Análisis de Salida</h3>
                   <p className="text-blue-700 text-sm mt-1">{record.aiCheckoutAnalysis}</p>
               </div>
+            )}
+            {record.checkOutJustification && (
+                <div className="p-3 rounded-md bg-yellow-50 border border-yellow-200">
+                    <h3 className="font-semibold text-sm flex items-center gap-2 text-yellow-800"><MessageSquareWarning className="size-4" />Justificación de Salida Temprana</h3>
+                    <p className="text-yellow-700 text-sm mt-1">{record.checkOutJustification}</p>
+                </div>
             )}
           </div>
 
@@ -138,6 +145,9 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
   const [isLocating, setIsLocating] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
 
+  const [isEarlyCheckout, setIsEarlyCheckout] = useState(false);
+  const [justification, setJustification] = useState("");
+
   useEffect(() => {
     // Reset state when dialog is opened/closed or record changes
     if (isOpen) {
@@ -147,6 +157,22 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         setLocationError(null);
         setIsLocating(false);
         setRetryCount(0);
+        setJustification("");
+        
+        // Check for early checkout
+        if (record?.appointmentEndTime) {
+            const now = new Date();
+            const [hours, minutes] = record.appointmentEndTime.split(':').map(Number);
+            const appointmentEndDateTime = new Date();
+            appointmentEndDateTime.setHours(hours, minutes, 0, 0);
+            if (now < appointmentEndDateTime) {
+                setIsEarlyCheckout(true);
+            } else {
+                setIsEarlyCheckout(false);
+            }
+        } else {
+            setIsEarlyCheckout(false);
+        }
     }
   }, [isOpen, record]);
 
@@ -255,6 +281,11 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         toast({ variant: "destructive", title: "Faltan datos" });
         return;
     }
+    if (isEarlyCheckout && !justification) {
+        toast({ variant: "destructive", title: "Justificación Requerida", description: "Debes justificar por qué estás registrando una salida temprana." });
+        return;
+    }
+
     setIsSubmitting(true);
     let aiCheckoutAnalysis: string | null = null;
 
@@ -285,6 +316,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
             checkOutImageUrl: imageUrl,
             status: 'closed',
             aiCheckoutAnalysis: aiCheckoutAnalysis,
+            ...(isEarlyCheckout && { checkOutJustification: justification }),
         });
 
         toast({ title: "¡Salida Registrada!", description: "Tu jornada ha finalizado correctamente." });
@@ -346,10 +378,25 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
                             <Button onClick={() => setCapturedImage(null)} variant="outline">Tomar de Nuevo</Button>
                         )}
                     </div>
+
+                    {isEarlyCheckout && (
+                        <div className="space-y-2">
+                           <Label htmlFor="justification">Justificación de Salida Temprana</Label>
+                           <Textarea 
+                                id="justification" 
+                                placeholder="Ej: Fui reasignado al centro de trabajo X, emergencia personal, etc." 
+                                value={justification}
+                                onChange={(e) => setJustification(e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground">Estás registrando tu salida antes de la hora de fin de jornada. Por favor, justifica el motivo.</p>
+                        </div>
+                    )}
+                    
                     <Separator />
+
                     <div className="flex gap-2">
                         <Button variant="outline" className="w-full" onClick={() => setStep(1)} disabled={isSubmitting}>Volver</Button>
-                        <Button className="w-full" onClick={handleSubmit} disabled={!capturedImage || isSubmitting}>
+                        <Button className="w-full" onClick={handleSubmit} disabled={!capturedImage || isSubmitting || (isEarlyCheckout && !justification)}>
                             {isSubmitting ? <><Loader2 className="animate-spin mr-2" /> Finalizando...</> : "Finalizar Jornada"}
                         </Button>
                     </div>

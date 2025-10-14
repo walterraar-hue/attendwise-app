@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Building, User as UserIcon, AlertTriangle, LogIn, LogOut, Camera, MapPin, Wand2 } from 'lucide-react';
+import { Building, User as UserIcon, AlertTriangle, LogIn, LogOut, Camera, MapPin, Wand2, MessageSquareWarning } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
@@ -60,6 +60,12 @@ function AttendanceDetailsDialog({ record, workCenterName, isOpen, onClose }: { 
               <div className="p-3 rounded-md bg-blue-50 border border-blue-200">
                   <h3 className="font-semibold text-sm flex items-center gap-2 text-blue-800"><Wand2 className="size-4" />Análisis de Salida</h3>
                   <p className="text-blue-700 text-sm mt-1">{record.aiCheckoutAnalysis}</p>
+              </div>
+            )}
+            {record.checkOutJustification && (
+              <div className="p-3 rounded-md bg-yellow-50 border border-yellow-200">
+                  <h3 className="font-semibold text-sm flex items-center gap-2 text-yellow-800"><MessageSquareWarning className="size-4" />Justificación de Salida Temprana</h3>
+                  <p className="text-yellow-700 text-sm mt-1">{record.checkOutJustification}</p>
               </div>
             )}
           </div>
