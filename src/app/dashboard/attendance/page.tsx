@@ -154,7 +154,7 @@ export default function AttendancePage() {
   }, [companyId, firestore]);
   const { data: companyUsers, isLoading: areUsersLoading, error: usersError } = useCollection<AppUser>(companyUsersQuery);
 
-  // 4. Fetch all attendance records for all users
+  // 4. Fetch all attendance records for all users (Optimized with Promise.all)
   useEffect(() => {
     if (usersError) {
       setGlobalError(usersError.message);
@@ -170,48 +170,61 @@ export default function AttendancePage() {
     const fetchAllRecords = async () => {
       setIsLoading(true);
       setGlobalError(null);
-      const records: AggregatedRecord[] = [];
       let permissionErrorOccurred = false;
-      
-      for (const member of companyUsers) {
-        try {
-            const attendanceRef = collection(firestore, `users/${member.id}/attendanceRecords`);
-            const attendanceSnap = await getDocs(query(attendanceRef, orderBy('checkInTimestamp', 'desc')));
-            attendanceSnap.forEach(doc => {
-              const docData = doc.data() as AttendanceRecord;
-              records.push({ 
-                ...docData,
-                id: doc.id,
-                userName: member.name,
-                userEmail: member.email,
-              });
-            });
-        } catch (e) {
-            if (e instanceof FirestoreError && (e.code === 'permission-denied' || e.code === 'unauthenticated')) {
+
+      try {
+        const recordPromises = companyUsers.map(async (member) => {
+          const attendanceRef = collection(firestore, `users/${member.id}/attendanceRecords`);
+          const q = query(attendanceRef, orderBy('checkInTimestamp', 'desc'));
+          const attendanceSnap = await getDocs(q);
+          return attendanceSnap.docs.map(doc => {
+            const docData = doc.data() as AttendanceRecord;
+            return { 
+              ...docData,
+              id: doc.id,
+              userName: member.name,
+              userEmail: member.email,
+            };
+          });
+        });
+
+        const results = await Promise.allSettled(recordPromises);
+        
+        const aggregatedRecords: AggregatedRecord[] = [];
+        results.forEach(result => {
+          if (result.status === 'fulfilled') {
+            aggregatedRecords.push(...result.value);
+          } else {
+            const error = result.reason;
+            if (error instanceof FirestoreError && (error.code === 'permission-denied' || error.code === 'unauthenticated')) {
               permissionErrorOccurred = true;
             }
-            if (process.env.NODE_ENV !== 'production') {
-              console.error(`Could not fetch attendance for user ${member.id}:`, e);
-            }
+          }
+        });
+
+        if (permissionErrorOccurred) {
+           setGlobalError("No tienes permisos para ver los registros de asistencia de todos los miembros. Por favor, contacta a tu administrador para ajustar las reglas de seguridad de Firestore y permitir que los administradores lean los registros de otros usuarios.");
         }
+        
+        // Sort all records together by timestamp
+        aggregatedRecords.sort((a, b) => {
+          const timeA = a.checkInTimestamp?.toDate?.().getTime() || 0;
+          const timeB = b.checkInTimestamp?.toDate?.().getTime() || 0;
+          return timeB - timeA;
+        });
+        
+        setAllRecords(aggregatedRecords);
+
+      } catch (e) {
+        setGlobalError("Ocurrió un error inesperado al cargar los registros.");
+      } finally {
+        setIsLoading(false);
       }
-      
-      if (permissionErrorOccurred) {
-        setGlobalError("No tienes permisos para ver los registros de asistencia de todos los miembros. Por favor, contacta a tu administrador para ajustar las reglas de seguridad de Firestore y permitir que los administradores lean los registros de otros usuarios.");
-      }
-      
-      records.sort((a, b) => {
-        const timeA = a.checkInTimestamp?.toDate?.().getTime() || 0;
-        const timeB = b.checkInTimestamp?.toDate?.().getTime() || 0;
-        return timeB - timeA;
-      });
-      
-      setAllRecords(records);
-      setIsLoading(false);
     };
 
     fetchAllRecords();
-  }, [companyUsers, firestore, areUsersLoading, isUserLoading, usersError]);
+  }, [companyUsers, firestore, usersError]);
+
 
   // 5. Fetch work centers for names
   const workCentersQuery = useMemoFirebase(() => {
@@ -266,10 +279,40 @@ export default function AttendancePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-            {isLoadingData ? (
-                <div className="space-y-4">
-                    {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
-                </div>
+            {isLoadingData && !allRecords.length ? (
+                <>
+                  <div className="md:hidden space-y-4">
+                      {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-48 w-full rounded-lg" />)}
+                  </div>
+                  <div className="hidden md:block">
+                      <Table>
+                          <TableHeader>
+                              <TableRow>
+                                  <TableHead><Skeleton className="h-5 w-24" /></TableHead>
+                                  <TableHead><Skeleton className="h-5 w-20" /></TableHead>
+                                  <TableHead><Skeleton className="h-5 w-32" /></TableHead>
+                                  <TableHead><Skeleton className="h-5 w-28" /></TableHead>
+                                  <TableHead><Skeleton className="h-5 w-28" /></TableHead>
+                                  <TableHead><Skeleton className="h-5 w-16" /></TableHead>
+                                  <TableHead className="text-right"><Skeleton className="h-5 w-20 ml-auto" /></TableHead>
+                              </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                              {[...Array(5)].map((_, i) => (
+                                  <TableRow key={i}>
+                                      <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                                      <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                                      <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                                      <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                                      <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                                      <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                                      <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                                  </TableRow>
+                              ))}
+                          </TableBody>
+                      </Table>
+                  </div>
+                </>
             ) : (
                 <>
                 {/* Mobile View */}
@@ -414,3 +457,5 @@ export default function AttendancePage() {
     </>
   );
 }
+
+    

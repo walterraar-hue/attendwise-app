@@ -101,7 +101,6 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
       });
 
     } catch (error) {
-      if(process.env.NODE_ENV !== 'production') console.error("Error changing role:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -216,3 +215,5 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
     </>
   );
 }
+
+    
