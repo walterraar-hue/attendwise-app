@@ -2,7 +2,7 @@
 'use client';
 
 import type { ReactNode } from "react";
-import { SidebarProvider, Sidebar, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import { SidebarNav } from "@/components/dashboard/sidebar-nav";
 import { useUser } from "@/firebase";
 import { useRouter } from "next/navigation";
@@ -32,7 +32,7 @@ function DashboardHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b bg-primary text-primary-foreground">
-       <div className="container mx-auto flex h-full w-full items-center gap-4 px-4 sm:px-6">
+       <div className="flex h-full w-full items-center gap-4 px-4 sm:px-6">
             <Button
                 size="icon"
                 variant="ghost"
@@ -42,9 +42,7 @@ function DashboardHeader() {
                 <PanelLeft className="h-5 w-5" />
                 <span className="sr-only">Toggle Sidebar</span>
             </Button>
-            <div className="hidden md:block">
-                <Logo showIcon={false} logoTextClassName="text-primary-foreground" />
-            </div>
+            <Logo showIcon={false} logoTextClassName="text-primary-foreground" />
             <div className="ml-auto flex items-center gap-4">
                 <UserNav user={userProps} />
             </div>
