@@ -22,7 +22,7 @@ import type { UserRole } from '@/lib/types';
 
 export const navItemsByRole = {
     'Global Admin': [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Centro de Control' },
       { href: '/dashboard/register-attendance', icon: ClipboardCheck, label: 'Registrar Asistencia' },
       { href: '/dashboard/my-history', icon: History, label: 'Mi Historial' },
       { href: '/dashboard/attendance', icon: ClipboardList, label: 'Asistencia Equipo' },
@@ -30,19 +30,19 @@ export const navItemsByRole = {
       { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
     ],
     'CEO': [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Centro de Control' },
       { href: '/dashboard/gm-indicators', icon: BarChartHorizontal, label: 'Indicadores' },
       { href: '/dashboard/team-management', icon: Users, label: 'Gestión de Equipo' },
     ],
     'Operations Manager': [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Centro de Control' },
       { href: '/dashboard/om-indicators', icon: BarChartHorizontal, label: 'Indicadores' },
       { href: '/dashboard/attendance', icon: ClipboardList, label: 'Asistencia Equipo' },
       { href: '/dashboard/team-management', icon: Users, label: 'Gestión de Equipo' },
       { href: '/dashboard/register-attendance', icon: ClipboardCheck, label: 'Registrar Asistencia' },
     ],
     'Miembro': [
-      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Centro de Control' },
       { href: '/dashboard/register-attendance', icon: ClipboardCheck, label: 'Registrar Asistencia' },
       { href: '/dashboard/my-history', icon: History, label: 'Mi Historial' },
     ],

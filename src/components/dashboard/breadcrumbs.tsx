@@ -14,7 +14,7 @@ allNavItems.forEach(item => {
     breadcrumbNameMap[item.href] = item.label;
 });
 // Add manual entries for routes not in nav
-breadcrumbNameMap['/dashboard'] = 'Dashboard';
+breadcrumbNameMap['/dashboard'] = 'Centro de Control';
 breadcrumbNameMap['/dashboard/attendance'] = 'Asistencia Equipo';
 
 
