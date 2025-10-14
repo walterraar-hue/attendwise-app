@@ -33,7 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
-const LOCATION_TIMEOUT_MS = 30000;
+const LOCATION_TIMEOUT_MS = 20000; // 20 seconds
 
 // Dialog to show full details of a closed record
 function AttendanceDetailsDialog({ record, isOpen, onClose }: { record: AttendanceRecord | null; isOpen: boolean; onClose: () => void; }) {
@@ -114,8 +114,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const locationWatcherId = useRef<number | null>(null);
-
+  
   const [step, setStep] = useState(1);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -129,7 +128,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
 
   useEffect(() => {
     // Reset state when dialog is opened/closed or record changes
-    if (!isOpen) {
+    if (isOpen) {
         setStep(1);
         setCapturedImage(null);
         setLocation(null);
@@ -139,49 +138,45 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         if (stream) stream.getTracks().forEach(track => track.stop());
         setStream(null);
     }
-  }, [isOpen, record, stream]);
+  }, [isOpen, record]);
+
 
    useEffect(() => {
-    const stopWatching = () => {
-      if (locationWatcherId.current !== null) navigator.geolocation.clearWatch(locationWatcherId.current);
-    };
-
     if (isOpen && step === 1) {
-      setIsLocating(true);
-      setLocation(null);
-      setLocationError(null);
+        setIsLocating(true);
+        setLocation(null);
+        setLocationError(null);
 
-      const timeoutId = setTimeout(() => {
-        if (location) return;
-        stopWatching();
-        setLocationError("Se agotó el tiempo para obtener la ubicación. Inténtalo de nuevo.");
-        setIsLocating(false);
-      }, LOCATION_TIMEOUT_MS);
-
-      locationWatcherId.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
-          if (accuracy <= ACCEPTABLE_ACCURACY_METERS) {
-            setLocation({ latitude, longitude, accuracy });
-            setLocationError(null);
+        if (!navigator.geolocation) {
+            setLocationError("Geolocalización no soportada por el navegador.");
             setIsLocating(false);
-            clearTimeout(timeoutId);
-            stopWatching();
-          } else {
-            setLocationError(`Mejorando precisión... (actual: ${accuracy.toFixed(0)}m)`);
-          }
-        },
-        (err) => {
-          clearTimeout(timeoutId);
-          setLocationError("Error al obtener la ubicación. Revisa los permisos.");
-          setIsLocating(false);
-          stopWatching();
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const { latitude, longitude, accuracy } = pos.coords;
+                if (accuracy > ACCEPTABLE_ACCURACY_METERS) {
+                    setLocationError(`Precisión (${accuracy.toFixed(0)}m) muy baja. Inténtalo en un lugar con mejor señal.`);
+                    setIsLocating(false);
+                    return;
+                }
+                setLocation({ latitude, longitude, accuracy });
+                setLocationError(null);
+                setIsLocating(false);
+            },
+            (err) => {
+                let message = "Error al obtener la ubicación. Revisa los permisos.";
+                if (err.code === err.PERMISSION_DENIED) message = "Permiso de ubicación denegado.";
+                if (err.code === err.POSITION_UNAVAILABLE) message = "Ubicación no disponible.";
+                if (err.code === err.TIMEOUT) message = "Se agotó el tiempo para obtener la ubicación.";
+                setLocationError(message);
+                setIsLocating(false);
+            },
+            { enableHighAccuracy: true, timeout: LOCATION_TIMEOUT_MS, maximumAge: 0 }
+        );
     }
-    return () => stopWatching();
-  }, [isOpen, step, location, retryCount]);
+  }, [isOpen, step, retryCount]);
 
   useEffect(() => {
     async function setupCamera() {
@@ -266,19 +261,19 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
                     <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/50 min-h-[60px]">
                         <MapPin className="h-5 w-5 text-muted-foreground" />
                         <div className="flex-1">
-                            {isLocating && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="animate-spin" />{locationError || 'Obteniendo ubicación...'}</p>}
+                            {isLocating && <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="animate-spin" />Obteniendo ubicación...</p>}
                             {location && <p className="text-sm text-green-600">Ubicación obtenida con precisión de {location.accuracy.toFixed(0)}m.</p>}
-                            {!isLocating && locationError && !locationError.startsWith('Mejorando') && <p className="text-sm text-destructive">{locationError}</p>}
+                            {!isLocating && locationError && <p className="text-sm text-destructive">{locationError}</p>}
                         </div>
                     </div>
-                     {locationError && !locationError.startsWith('Mejorando') ? (
+                     {!location && locationError ? (
                        <Button className="w-full" onClick={handleRetryLocation} variant="outline">
                          <RefreshCw className="mr-2 h-4 w-4" />
                          Reintentar Ubicación
                        </Button>
                      ) : (
                        <Button className="w-full" onClick={() => setStep(2)} disabled={!location || isLocating}>
-                            Siguiente <ArrowRight className="ml-2" />
+                            {isLocating ? 'Obteniendo...' : 'Siguiente'} <ArrowRight className="ml-2" />
                        </Button>
                      )}
                 </div>
