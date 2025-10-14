@@ -1,8 +1,4 @@
 
-
-
-
-
 export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager' | 'Miembro';
 
 export type UserStatus = 'active' | 'pending' | 'inactive';
@@ -44,5 +40,3 @@ export interface AttendanceRecord {
 }
 
 export type Role = "admin" | "manager";
-
-    

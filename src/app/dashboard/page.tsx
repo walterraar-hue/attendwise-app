@@ -1,36 +1,51 @@
+'use client';
 import { Clock, AlertTriangle, UserCheck, UserX } from 'lucide-react';
 import Header from '@/components/dashboard/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Role } from '@/lib/types';
-import { company, users, attendance } from '@/lib/data';
+import { Skeleton } from '@/components/ui/skeleton';
 import AttendanceSummary from '@/components/dashboard/attendance-summary';
-
-
-function getStats(role: Role) {
-  const totalEmployees = users.filter(u => u.role !== 'Global Admin').length;
-  const today = new Date().toISOString().split('T')[0]; // Using mock date for consistency
-  const mockToday = '2024-07-23';
-  
-  const todaysAttendance = attendance.filter(a => a.date === mockToday);
-  const presentToday = todaysAttendance.filter(a => a.status === 'Present' || a.status === 'Late').length;
-  const lateToday = todaysAttendance.filter(a => a.status === 'Late').length;
-  const absentToday = totalEmployees - presentToday;
-
-  let relevantAttendance = attendance;
-  if(role === 'manager') {
-    const manager = users.find(u => u.role === 'Manager');
-    const teamMembers = users.filter(u => u.teamId === manager?.teamId);
-    const teamMemberIds = teamMembers.map(u => u.id);
-    relevantAttendance = attendance.filter(a => teamMemberIds.includes(a.userId));
-  }
-  
-  return { presentToday, lateToday, absentToday, totalEmployees, relevantAttendance };
-}
-
+import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { collection, query, where } from 'firebase/firestore';
+import type { Company, User as AppUser, AttendanceRecord } from '@/lib/types';
+import { useDoc } from '@/firebase/firestore/use-doc';
 
 export default function DashboardPage() {
-  const role = 'admin'; // Always admin to see everything
-  const { presentToday, lateToday, absentToday, totalEmployees, relevantAttendance } = getStats(role);
+  const { user } = useUser();
+  const firestore = useFirestore();
+
+  const userDocRef = useMemoFirebase(() => {
+      if (!user || !firestore) return null;
+      return firestore ? firestore.collection('users').doc(user.uid) : null;
+  }, [user, firestore]);
+  // const { data: userData } = useDoc<AppUser>(userDocRef as any);
+
+  // const companyId = userData?.companyId;
+
+  // const companyDocRef = useMemoFirebase(() => {
+  //     if (!companyId || !firestore) return null;
+  //     return firestore.collection('companies').doc(companyId);
+  // }, [companyId, firestore]);
+  // const { data: companyData } = useDoc<Company>(companyDocRef as any);
+
+  // const usersQuery = useMemoFirebase(() => {
+  //     if (!companyId || !firestore) return null;
+  //     return query(collection(firestore, 'users'), where('companyId', '==', companyId));
+  // }, [companyId, firestore]);
+  // const { data: companyUsers } = useCollection<AppUser>(usersQuery);
+
+  // For now, we will use placeholders as we don't have real data.
+  const presentToday = 0;
+  const totalEmployees = 0;
+  const absentToday = 0;
+  const lateToday = 0;
+  const atRiskPatterns = 0;
+  const role = 'admin'; // default to admin
+  const relevantAttendance: AttendanceRecord[] = [];
+  const companyName = "AttendWise";
+  const companyPolicies = "";
+  const isLoading = false;
+
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -42,7 +57,7 @@ export default function DashboardPage() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{presentToday} / {totalEmployees}</div>
+            {isLoading ? <Skeleton className="h-8 w-24" /> : <div className="text-2xl font-bold">{presentToday} / {totalEmployees}</div>}
             <p className="text-xs text-muted-foreground">Employees checked in today</p>
           </CardContent>
         </Card>
@@ -52,7 +67,7 @@ export default function DashboardPage() {
             <UserX className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{absentToday}</div>
+             {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{absentToday}</div>}
             <p className="text-xs text-muted-foreground">Employees absent today</p>
           </CardContent>
         </Card>
@@ -62,7 +77,7 @@ export default function DashboardPage() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{lateToday}</div>
+            {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">+{lateToday}</div>}
             <p className="text-xs text-muted-foreground">Employees arrived late today</p>
           </CardContent>
         </Card>
@@ -72,7 +87,7 @@ export default function DashboardPage() {
             <AlertTriangle className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1</div>
+            {isLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{atRiskPatterns}</div>}
             <p className="text-xs text-muted-foreground">Active attendance concerns</p>
           </CardContent>
         </Card>
@@ -81,8 +96,8 @@ export default function DashboardPage() {
       <AttendanceSummary 
         role={role}
         attendanceData={relevantAttendance}
-        companyName={company.name}
-        companyPolicies={company.policies}
+        companyName={companyName}
+        companyPolicies={companyPolicies}
       />
     </div>
   );

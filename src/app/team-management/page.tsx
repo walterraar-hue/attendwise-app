@@ -165,7 +165,7 @@ export default function TeamManagementPage() {
         if (!user || !firestore) return null;
         return doc(firestore, 'users', user.uid);
     }, [user, firestore]);
-    const { data: userData } = useDoc(userDocRef);
+    const { data: userData, isLoading: isUserLoading } = useDoc(userDocRef);
 
     const companyId = userData?.companyId;
 
@@ -173,16 +173,16 @@ export default function TeamManagementPage() {
         if (!companyId || !firestore) return null;
         return doc(firestore, 'companies', companyId);
     }, [companyId, firestore]);
-    const { data: companyData, isLoading: companyLoading } = useDoc<Company>(companyDocRef);
+    const { data: companyData, isLoading: isCompanyLoading } = useDoc<Company>(companyDocRef);
 
     const usersQuery = useMemoFirebase(() => {
         if (!companyId || !firestore) return null;
         return query(collection(firestore, 'users'), where('companyId', '==', companyId));
     }, [companyId, firestore]);
 
-    const { data: companyUsers, isLoading: usersLoading } = useCollection<User>(usersQuery);
+    const { data: companyUsers, isLoading: areUsersLoading } = useCollection<User>(usersQuery);
 
-    const isLoading = companyLoading || usersLoading;
+    const isLoading = isUserLoading || isCompanyLoading || areUsersLoading;
 
 
   return (
@@ -192,44 +192,47 @@ export default function TeamManagementPage() {
         {companyId && <InviteMemberDialog company={{ id: companyId }} />}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-8">
-        {isLoading || !companyData || !companyUsers ? (
-             <Card className="lg:col-span-2">
-                <CardHeader>
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                        <div className="flex justify-between">
-                            <Skeleton className="h-4 w-1/3" />
-                            <Skeleton className="h-5 w-1/4" />
-                        </div>
-                        <Skeleton className="h-4 w-full" />
-                    </div>
-                    <Separator />
-                    <div className="space-y-4">
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                    </div>
-                </CardContent>
+        <div className="lg:col-span-2 grid grid-cols-1 gap-8">
+          {isLoading ? (
+            <Card>
+              <CardHeader>
+                  <Skeleton className="h-7 w-3/4" />
+                  <Skeleton className="h-4 w-1/2 mt-1" />
+              </CardHeader>
+              <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                      <div className="flex justify-between">
+                          <Skeleton className="h-5 w-1/3" />
+                          <Skeleton className="h-6 w-1/4" />
+                      </div>
+                      <Skeleton className="h-4 w-full" />
+                  </div>
+                  <Separator />
+                  <div className="space-y-4">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                  </div>
+              </CardContent>
             </Card>
-        ) : (
-            <div className="lg:col-span-2 grid grid-cols-1 gap-8">
-              <PlanUsageCard company={companyData} users={companyUsers || []} />
-            </div>
-        )}
-         <div className="lg:col-span-1">
+          ) : (
+            <PlanUsageCard company={companyData} users={companyUsers || []} />
+          )}
+        </div>
+        <div className="lg:col-span-1">
             {isLoading || !companyId ? <Skeleton className="h-48 w-full" /> : <InvitationCode companyId={companyId} />}
-         </div>
+        </div>
       </div>
       
       <Separator />
 
       <div className="space-y-4 mt-8">
         <Header title="Miembros del Equipo" />
-        {isLoading || !companyUsers ? (
-            <p>Cargando miembros...</p>
+        {isLoading ? (
+            <div className="rounded-md border bg-card p-6">
+                <Skeleton className="h-8 w-full mb-4" />
+                <Skeleton className="h-8 w-full mb-4" />
+                <Skeleton className="h-8 w-full" />
+            </div>
         ) : (
             <MembersTable 
                 data={companyUsers || []} 
