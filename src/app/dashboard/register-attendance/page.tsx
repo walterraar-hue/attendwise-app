@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon } from 'lucide-react';
+import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
+import { punctualityAnalysis } from '@/ai/flows/punctuality-analysis';
 
 // Mock data for work centers
 const workCenters = [
@@ -30,6 +31,7 @@ export default function RegisterAttendancePage() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
   const [appointmentTime, setAppointmentTime] = useState('');
@@ -176,27 +178,58 @@ export default function RegisterAttendancePage() {
      // The useEffect will automatically re-run and set up the camera
   };
 
-  const handleSubmit = () => {
-    // Here you would handle the submission of the data,
-    // including appointmentTime, workCenter, capturedImage, and location
-    console.log({
-        appointmentTime,
-        workCenter,
-        location,
-        image: capturedImage ? 'Image captured' : 'No Image'
-    })
-    toast({
-      title: '¡Registro Enviado!',
-      description: 'Tu asistencia ha sido registrada correctamente.',
-    });
-    // Reset state after submission
-    setStep(1);
-    setAppointmentTime('');
-    setWorkCenter('');
-    setCapturedImage(null);
-    setHasCameraPermission(null);
-    setLocation(null);
-    setLocationError(null);
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    let aiAnalysisToast;
+
+    try {
+        // Here you would handle the submission of the data,
+        // including appointmentTime, workCenter, capturedImage, and location
+        console.log({
+            appointmentTime,
+            workCenter,
+            location,
+            image: capturedImage ? 'Image captured' : 'No Image'
+        });
+
+        // Calculate punctuality
+        const now = new Date();
+        const [hours, minutes] = appointmentTime.split(':').map(Number);
+        const appointmentDateTime = new Date();
+        appointmentDateTime.setHours(hours, minutes, 0, 0);
+
+        const diffMinutes = (appointmentDateTime.getTime() - now.getTime()) / 60000;
+
+        if (diffMinutes > 0) {
+            // User is early, call AI flow
+            const result = await punctualityAnalysis({ minutesEarly: Math.round(diffMinutes) });
+            aiAnalysisToast = result.analysis;
+        }
+
+        toast({
+          title: '¡Registro Enviado!',
+          description: aiAnalysisToast || 'Tu asistencia ha sido registrada correctamente.',
+        });
+
+        // Reset state after submission
+        setStep(1);
+        setAppointmentTime('');
+        setWorkCenter('');
+        setCapturedImage(null);
+        setHasCameraPermission(null);
+        setLocation(null);
+        setLocationError(null);
+        
+    } catch(error) {
+        console.error("Submission error:", error);
+        toast({
+            variant: "destructive",
+            title: "Error al Enviar",
+            description: "No se pudo registrar la asistencia. Inténtalo de nuevo."
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (
@@ -274,7 +307,7 @@ export default function RegisterAttendancePage() {
                 <div className="space-y-4">
                     <div className="aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden">
                       {capturedImage ? (
-                          <Image src={capturedImage} alt="Captured attendance" fill objectFit="contain" />
+                          <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
                       ) : (
                           <div className="relative w-full h-full flex items-center justify-center">
                               <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
@@ -312,12 +345,19 @@ export default function RegisterAttendancePage() {
                     <Separator />
 
                     <div className="flex flex-col sm:flex-row gap-2">
-                        <Button variant="outline" className="w-full" onClick={() => setStep(1)}>
+                        <Button variant="outline" className="w-full" onClick={() => setStep(1)} disabled={isSubmitting}>
                             <ArrowLeft className="mr-2 h-4 w-4" />
                             Volver
                         </Button>
-                        <Button className="w-full" onClick={handleSubmit} disabled={!capturedImage}>
-                            Notificar Ingreso y Enviar
+                        <Button className="w-full" onClick={handleSubmit} disabled={!capturedImage || isSubmitting}>
+                           {isSubmitting ? (
+                                <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Enviando...
+                                </>
+                            ) : (
+                                "Notificar Ingreso y Enviar"
+                            )}
                         </Button>
                     </div>
                 </div>
@@ -329,6 +369,3 @@ export default function RegisterAttendancePage() {
     </div>
   );
 }
-
-
-    
