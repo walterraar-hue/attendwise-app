@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import Image from "next/image";
+import { ClipboardCheck } from "lucide-react";
 
 export default function Logo({ 
   className, 
@@ -15,13 +15,9 @@ export default function Logo({
   return (
     <div className={cn("flex items-center gap-3", className)}>
       {showIcon && (
-        <Image 
-          src="/Logo.png"
-          alt="Logo de Serlogint Attend"
-          width={32}
-          height={32}
-          className="object-contain"
-        />
+        <div className="bg-primary-foreground/10 p-2 rounded-full">
+            <ClipboardCheck className={cn("size-6 text-primary", logoTextClassName && "text-primary-foreground")} />
+        </div>
       )}
       <div className="flex flex-col">
         <span className={cn("text-xl font-bold", logoTextClassName)}>Serlogint Attend</span>
