@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { UserRole } from "@/lib/types";
 
 
@@ -31,7 +30,6 @@ const memberSchema = z.object({
   email: z.string().email("Por favor, introduce un email válido."),
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
   companyCode: z.string().min(1, "El código de compañía es requerido."),
-  role: z.enum(['Miembro', 'Operations Manager', 'CEO'], { required_error: "Debes seleccionar un rol." }),
 });
 
 const adminSchema = z.object({
@@ -63,7 +61,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   const form = useForm({
     resolver: zodResolver(isMemberFlow ? memberSchema : adminSchema),
     defaultValues: isMemberFlow
-      ? { name: "", email: "", password: "", companyCode: "", role: "Miembro" as UserRole }
+      ? { name: "", email: "", password: "", companyCode: "" }
       : { name: "", companyName: "", email: "", password: "" },
   });
 
@@ -120,7 +118,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       });
       
       const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      batch.set(adminRoleRef, { admin: true });
+      batch.set(adminRoleRef, { admin: true, role: 'Global Admin' });
 
       await batch.commit();
 
@@ -149,8 +147,10 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         setIsLoading(false);
         return;
     }
-
+    
+    const userRoleToAssign: UserRole = "Miembro";
     let userCredential;
+
     try {
         // Step 1: Create the user in Auth to get a UID
         userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
@@ -166,20 +166,20 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         }
 
         const companyData = companySnap.data();
-        const roleLimit = companyData.roleLimits?.[values.role] ?? 0;
+        const roleLimit = companyData.roleLimits?.[userRoleToAssign] ?? 0;
         
         if (roleLimit === 0) {
-            toast({ title: "Error de Registro", description: `El rol '${values.role}' no está disponible en el plan de esta compañía. Por favor, contacta a tu administrador.`, variant: "destructive" });
+            toast({ title: "Error de Registro", description: `El rol '${userRoleToAssign}' no está disponible en el plan de esta compañía. Por favor, contacta a tu administrador.`, variant: "destructive" });
             throw new Error("Role not available in plan");
         }
         
         if (roleLimit !== -1) {
-            const usersQuery = query(collection(firestore, 'users'), where('companyId', '==', values.companyCode), where('role', '==', values.role));
+            const usersQuery = query(collection(firestore, 'users'), where('companyId', '==', values.companyCode), where('role', '==', userRoleToAssign));
             const usersSnap = await getDocs(usersQuery);
             const currentRoleCount = usersSnap.size;
 
             if (currentRoleCount >= roleLimit) {
-                toast({ title: "Error de Registro", description: `No hay cupos disponibles para el rol de ${values.role}. Por favor, contacta a tu administrador.`, variant: "destructive" });
+                toast({ title: "Error de Registro", description: `No hay cupos disponibles para el rol de ${userRoleToAssign}. Por favor, contacta a tu administrador.`, variant: "destructive" });
                 throw new Error("Role slots are full");
             }
         }
@@ -194,7 +194,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             companyId: values.companyCode,
             email: values.email,
             name: values.name,
-            role: values.role,
+            role: userRoleToAssign,
             status: 'active',
             createdAt: serverTimestamp(),
         });
@@ -205,12 +205,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         
         await batch.commit();
         
-        // Step 4: If the role is an admin-level role, create the admin role doc
-        if (values.role === 'CEO' || values.role === 'Operations Manager') {
-            const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-            await setDoc(adminRoleRef, { admin: true, role: values.role });
-        }
-
         toast({
             title: "¡Registro Completo!",
             description: "Tu cuenta ha sido creada y activada. ¡Bienvenido a tu dashboard!",
@@ -228,7 +222,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         if (error.code === 'auth/email-already-in-use') {
             toast({ title: "Error de Registro", description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.", variant: "destructive" });
         } else if (!companyCodeError) { // Avoid showing double errors
-            // Log the actual error, but show a generic message if it's not one of our custom ones.
             console.error("Member Registration Error:", error);
             if (error.message !== "Invalid company code" && error.message !== "Role not available in plan" && error.message !== "Role slots are full") {
               toast({ title: "Error de Registro", description: "No se pudo crear la cuenta. Por favor, inténtalo de nuevo.", variant: "destructive" });
@@ -290,45 +283,21 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         />
         
         {isMemberFlow && (
-          <>
-            <FormField
-              control={form.control}
-              name="companyCode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Código de la Compañía</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Pega el código que te dio tu administrador" {...field} />
-                  </FormControl>
-                  {companyCodeError ? (
-                    <p className="text-sm font-medium text-destructive">{companyCodeError}</p>
-                   ) : <FormMessage />}
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Rol en el Equipo</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona el rol que te asignaron" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Miembro">Miembro del Equipo</SelectItem>
-                      <SelectItem value="Operations Manager">Admin de Operaciones</SelectItem>
-                      <SelectItem value="CEO">CEO</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </>
+          <FormField
+            control={form.control}
+            name="companyCode"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Código de la Compañía</FormLabel>
+                <FormControl>
+                  <Input placeholder="Pega el código que te dio tu administrador" {...field} />
+                </FormControl>
+                {companyCodeError ? (
+                  <p className="text-sm font-medium text-destructive">{companyCodeError}</p>
+                  ) : <FormMessage />}
+              </FormItem>
+            )}
+          />
         )}
 
         <FormField
@@ -349,3 +318,5 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
+
+    
