@@ -12,12 +12,12 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const MotivationalMessageInputSchema = z.object({
+const MotivationalMessageInputSchema = z.object({
   userName: z.string().describe('The first name of the user.'),
 });
-export type MotivationalMessageInput = z.infer<typeof MotivationalMessageInputSchema>;
+type MotivationalMessageInput = z.infer<typeof MotivationalMessageInputSchema>;
 
-export const MotivationalMessageOutputSchema = z.object({
+const MotivationalMessageOutputSchema = z.object({
   message: z.string().describe('A short, motivational welcome message for the user.'),
 });
 export type MotivationalMessageOutput = z.infer<typeof MotivationalMessageOutputSchema>;

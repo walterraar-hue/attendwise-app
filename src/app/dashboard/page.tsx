@@ -11,7 +11,7 @@ import { useDoc } from '@/firebase/firestore/use-doc';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
-import { getMotivationalMessage } from '@/ai/flows/motivational-message-flow';
+import { getMotivationalMessage, type MotivationalMessageOutput } from '@/ai/flows/motivational-message-flow';
 
 
 const QUICK_ACTIONS = {
@@ -114,7 +114,7 @@ export default function DashboardPage() {
     if (userName && userName !== 'Usuario') {
       setIsMessageLoading(true);
       getMotivationalMessage({ userName })
-        .then(result => {
+        .then((result: MotivationalMessageOutput) => {
           setMotivationalMessage(result.message);
         })
         .catch(err => {
