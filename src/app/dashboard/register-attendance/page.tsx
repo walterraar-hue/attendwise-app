@@ -16,7 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { punctualityAnalysis } from '@/ai/flows/punctuality-analysis';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { User as AppUser, WorkCenter } from '@/lib/types';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import {
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
@@ -201,6 +202,7 @@ export default function RegisterAttendancePage() {
   const locationWatcherId = useRef<number | null>(null);
   const { user } = useUser();
   const firestore = useFirestore();
+  const router = useRouter();
 
   const [step, setStep] = useState(1);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
@@ -341,7 +343,7 @@ export default function RegisterAttendancePage() {
     setStep(2);
   }
 
-  const resetForm = () => {
+  const resetFormAndRedirect = () => {
     setStep(1);
     setAppointmentTime('');
     setAppointmentEndTime('');
@@ -352,6 +354,7 @@ export default function RegisterAttendancePage() {
     setLocationError(null);
     setCurrentAccuracy(null);
     setLastSubmission(null);
+    router.push('/dashboard');
   };
 
 
@@ -447,21 +450,9 @@ export default function RegisterAttendancePage() {
         await uploadString(imageStorageRef, capturedImage, 'data_url');
         imageUrl = await getDownloadURL(imageStorageRef);
 
-        // 2. (Optional) AI Punctuality Analysis
-        const now = new Date();
-        const [hours, minutes] = appointmentTime.split(':').map(Number);
-        const appointmentDateTime = new Date();
-        appointmentDateTime.setHours(hours, minutes, 0, 0);
-        const diffMinutes = (appointmentDateTime.getTime() - now.getTime()) / 60000;
-
-        if (diffMinutes > 0) {
-            const result = await punctualityAnalysis({ minutesEarly: Math.round(diffMinutes) });
-            aiPunctualityAnalysis = result.analysis;
-        }
-
-        // 3. Save record to Firestore
+        // 2. Create the initial document in Firestore
         const attendanceCollectionRef = collection(firestore, `users/${user.uid}/attendanceRecords`);
-        await addDoc(attendanceCollectionRef, {
+        const newDocRef = await addDoc(attendanceCollectionRef, {
             userId: user.uid,
             checkInTimestamp: serverTimestamp(),
             appointmentTime: appointmentTime,
@@ -473,9 +464,28 @@ export default function RegisterAttendancePage() {
                 accuracy: location.accuracy,
             },
             checkInImageUrl: imageUrl,
-            aiPunctualityAnalysis: aiPunctualityAnalysis,
+            aiPunctualityAnalysis: null, // Initially null
             status: 'open'
         });
+        
+        // 3. (Optional) AI Punctuality Analysis and update
+        const now = new Date();
+        const [hours, minutes] = appointmentTime.split(':').map(Number);
+        const appointmentDateTime = new Date();
+        appointmentDateTime.setHours(hours, minutes, 0, 0);
+        const diffMinutes = (appointmentDateTime.getTime() - now.getTime()) / 60000;
+
+        if (diffMinutes > 0) {
+            try {
+                const result = await punctualityAnalysis({ minutesEarly: Math.round(diffMinutes) });
+                aiPunctualityAnalysis = result.analysis;
+                // Update the document with the AI analysis
+                await updateDoc(newDocRef, { aiPunctualityAnalysis });
+            } catch (aiError) {
+                console.warn("AI punctuality analysis failed:", aiError);
+                // Continue without AI analysis if it fails
+            }
+        }
         
         // 4. Show success dialog
         const selectedWorkCenter = workCenters?.find(wc => wc.id === workCenterId);
@@ -485,7 +495,7 @@ export default function RegisterAttendancePage() {
             workCenterId,
             workCenterName: selectedWorkCenter?.name || 'N/A',
             location,
-            image: capturedImage, // Show local captured image in dialog
+            image: capturedImage,
             aiAnalysis: aiPunctualityAnalysis,
         };
         setLastSubmission(submissionData);
@@ -551,7 +561,6 @@ export default function RegisterAttendancePage() {
   }
 
   const getPunctualityStatus = (): Status => {
-    if (step === 1 && appointmentTime) return 'in-progress';
     if (isSubmitting) return 'in-progress';
     if (lastSubmission) return 'success';
     return 'pending';
@@ -702,9 +711,11 @@ export default function RegisterAttendancePage() {
           isOpen={isSuccessDialogOpen}
           onClose={() => {
             setIsSuccessDialogOpen(false);
-            resetForm();
+            resetFormAndRedirect();
           }}
         />
       </div>
   );
 }
+
+    
