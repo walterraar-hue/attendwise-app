@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, getDoc, increment } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +31,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { UserRole } from "@/lib/types";
-import { validateAndCreateUser } from "@/lib/actions";
 
 
 const memberSchema = z.object({
@@ -156,20 +155,74 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
-    
-    const result = await validateAndCreateUser(values);
-
-    if (result.success) {
-      toast({
-          title: "¡Cuenta Activada!",
-          description: "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
-      });
-      router.push("/login");
-    } else {
-      toast({ title: "Error de Activación", description: result.error, variant: "destructive" });
+    if (!auth || !firestore) {
+      toast({ title: "Error", description: "Los servicios de Firebase no están disponibles.", variant: "destructive" });
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(false);
+    const { name, email, companyCode, password, role } = values;
+
+    try {
+        // 1. Validate Company and Role Limits
+        const companyRef = doc(firestore, 'companies', companyCode);
+        const companySnap = await getDoc(companyRef);
+
+        if (!companySnap.exists()) {
+            throw new Error('El código de la empresa no es válido.');
+        }
+
+        const companyData = companySnap.data();
+        const roleLimit = companyData.roleLimits?.[role] ?? 0;
+        const usedSlots = companyData.usedSlots || 0;
+        
+        // This is a client-side check, the server-side rules are the ultimate authority
+        if (roleLimit !== -1 && usedSlots >= roleLimit) {
+             throw new Error(`No hay más cupos disponibles para el rol '${role}'.`);
+        }
+
+        // 2. Create Firebase Auth user
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // 3. Create user document and update company in a batch
+        const batch = writeBatch(firestore);
+
+        const userDocRef = doc(firestore, 'users', user.uid);
+        batch.set(userDocRef, {
+            id: user.uid,
+            companyId: companyCode,
+            name: name,
+            email: email,
+            role: role,
+            status: 'active', // Directly active
+        });
+
+        // Increment the used slots for the company
+        batch.update(companyRef, {
+            usedSlots: increment(1)
+        });
+
+        await batch.commit();
+
+        toast({
+            title: "¡Cuenta Activada!",
+            description: "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
+        });
+        router.push("/login");
+
+    } catch (error: any) {
+        let errorMessage = "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.";
+        if (error.code === 'auth/email-already-exists') {
+          errorMessage = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
+        } else {
+            console.error("Client-side Member Registration Error:", error);
+            errorMessage = error.message || errorMessage;
+        }
+        toast({ title: "Error de Activación", description: errorMessage, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
 
@@ -262,4 +315,3 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
-
