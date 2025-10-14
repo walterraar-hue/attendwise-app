@@ -75,13 +75,13 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-        <div className="flex h-full flex-col">
+        <div className="flex h-screen flex-col">
            <DashboardHeader />
-            <div className="flex flex-1">
+            <div className="flex flex-1 overflow-hidden">
                 <Sidebar>
                     <SidebarNav />
                 </Sidebar>
-                <SidebarInset>
+                <SidebarInset className="overflow-y-auto">
                     {children}
                 </SidebarInset>
             </div>
