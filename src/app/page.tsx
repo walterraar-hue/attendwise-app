@@ -1,66 +1,74 @@
+
 import Link from 'next/link';
-import { Building, UserPlus, LogIn } from 'lucide-react';
+import { Building, UserPlus, LogIn, ArrowRight } from 'lucide-react';
 import Logo from '@/components/logo';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import Image from 'next/image';
 
 export default function WelcomePage() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
-        <Card className="shadow-lg">
-          <CardHeader className="items-center text-center">
-            <Logo className="text-primary" logoTextClassName="text-foreground" />
-            <CardTitle className="font-headline text-2xl">Bienvenido a Serlogint Attend</CardTitle>
-            <CardDescription>Tu solución moderna de asistencia.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            
+    <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
+      <div className="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto grid w-[400px] gap-8">
+          <div className="grid gap-2 text-center">
+            <Logo className="justify-center" logoTextClassName="text-4xl" showSubtitle={false} />
+            <h1 className="text-3xl font-bold tracking-tight mt-4">Bienvenido</h1>
+            <p className="text-muted-foreground">
+              Tu solución moderna de asistencia. Elige una opción para empezar.
+            </p>
+          </div>
+          
+          <div className="grid gap-6">
             <Link href="/register/admin" passHref>
-              <Card className="hover:bg-accent cursor-pointer transition-colors">
-                <CardHeader className="flex flex-row items-center gap-4">
-                    <Building className="size-8 text-primary" />
-                    <div>
-                        <CardTitle className="text-lg">Crear un Nuevo Equipo</CardTitle>
-                        <CardDescription>Regístrate como Administrador Global para empezar a gestionar tu equipo.</CardDescription>
-                    </div>
-                </CardHeader>
-              </Card>
+              <div className="group flex items-start gap-4 rounded-lg border bg-card p-6 text-card-foreground shadow-sm transition-all hover:border-primary hover:bg-primary/5 cursor-pointer">
+                <div className="bg-primary/10 text-primary p-3 rounded-md">
+                    <Building className="size-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Crear un Nuevo Equipo</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Regístrate como Administrador para empezar a gestionar tu equipo.
+                  </p>
+                </div>
+              </div>
             </Link>
 
             <Link href="/register/member" passHref>
-                <Card className="hover:bg-accent cursor-pointer transition-colors">
-                    <CardHeader className="flex flex-row items-center gap-4">
-                        <UserPlus className="size-8 text-primary" />
-                        <div>
-                            <CardTitle className="text-lg">Unirme a un Equipo</CardTitle>
-                            <CardDescription>Usa un código de invitación para unirte al equipo de tu administrador.</CardDescription>
-                        </div>
-                    </CardHeader>
-                </Card>
+              <div className="group flex items-start gap-4 rounded-lg border bg-card p-6 text-card-foreground shadow-sm transition-all hover:border-primary hover:bg-primary/5 cursor-pointer">
+                <div className="bg-primary/10 text-primary p-3 rounded-md">
+                    <UserPlus className="size-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Unirme a un Equipo</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Usa un código de invitación para unirte al equipo de tu administrador.
+                  </p>
+                </div>
+              </div>
             </Link>
+          </div>
 
-            <div className="flex items-center gap-4 pt-4">
-              <Separator className="flex-1" />
-              <span className="text-sm text-muted-foreground">¿Ya tienes una cuenta?</span>
-              <Separator className="flex-1" />
-            </div>
-
-            <Button asChild variant="secondary" className="w-full">
-              <Link href="/login">
-                <LogIn className="mr-2" />
-                Inicia sesión
-              </Link>
-            </Button>
-            
-          </CardContent>
-           <CardFooter className="justify-center">
-             <p className="text-xs text-muted-foreground">
-               &copy; {new Date().getFullYear()} Serlogint Attend. All rights reserved.
-             </p>
-          </CardFooter>
-        </Card>
+          <div className="mt-4 text-center text-sm">
+            ¿Ya tienes una cuenta?{' '}
+            <Link href="/login" className="font-semibold text-primary underline-offset-4 hover:underline">
+              Inicia sesión aquí
+              <ArrowRight className="inline-block ml-1 size-4" />
+            </Link>
+          </div>
+          <footer className="text-center text-xs text-muted-foreground">
+             &copy; {new Date().getFullYear()} Serlogint Attend. All rights reserved.
+          </footer>
+        </div>
+      </div>
+      <div className="hidden bg-muted lg:block">
+        <Image
+          src="https://picsum.photos/seed/welcome/1200/1800"
+          alt="Abstract background image representing technology and connectivity"
+          data-ai-hint="office building"
+          width="1200"
+          height="1800"
+          className="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+        />
       </div>
     </div>
   );
