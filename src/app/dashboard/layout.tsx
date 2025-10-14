@@ -16,6 +16,7 @@ import Breadcrumbs from "@/components/dashboard/breadcrumbs";
 import type { User as AppUser } from "@/lib/types";
 import { doc } from "firebase/firestore";
 import { useDoc } from "@/firebase/firestore/use-doc";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function DashboardHeader() {
   const { user } = useUser();
@@ -26,10 +27,21 @@ function DashboardHeader() {
     if (!user || !firestore) return null;
     return doc(firestore, 'users', user.uid);
   }, [user, firestore]);
-  const { data: userData } = useDoc<AppUser>(userDocRef);
+  const { data: userData, isLoading: isUserDataLoading } = useDoc<AppUser>(userDocRef);
   
-  if (!user || !userData) {
-    return null; // Or a loading skeleton
+  if (isUserDataLoading || !user || !userData) {
+    return (
+        <header className="sticky top-0 z-30 flex h-16 items-center border-b bg-primary text-primary-foreground">
+            <div className="flex h-full w-full items-center gap-4 px-4 sm:px-6">
+                 <Skeleton className="h-8 w-8 rounded-full md:hidden" />
+                 <div className="hidden md:block">
+                     <Skeleton className="h-8 w-36" />
+                 </div>
+                 <div className="flex-1" />
+                 <Skeleton className="h-10 w-10 rounded-full" />
+            </div>
+        </header>
+    );
   }
 
   const userProps = {
