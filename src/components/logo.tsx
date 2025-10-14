@@ -15,12 +15,12 @@ export default function Logo({
   return (
     <div className={cn("flex items-center gap-3", className)}>
       {showIcon && (
-        <div className="relative h-8 w-8">
+        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary-foreground/10 border border-primary-foreground/20">
           <Image 
-            src="/logo.png" // Coloca tu logo (ej. logo.png) en la carpeta /public
+            src="/logo.png"
             alt="Logo de Serlogint Attend"
-            fill
-            sizes="32px"
+            width={24}
+            height={24}
             className="object-contain"
           />
         </div>
