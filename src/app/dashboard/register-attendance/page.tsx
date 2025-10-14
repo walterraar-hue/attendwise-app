@@ -51,6 +51,9 @@ export default function RegisterAttendancePage() {
   useEffect(() => {
     if (step === 1) {
       setIsLocating(true);
+      setCurrentAccuracy(null);
+      setLocation(null);
+      setLocationError(null);
       
       if (!('geolocation' in navigator)) {
         setLocationError("La geolocalización no es soportada por tu navegador.");
@@ -66,10 +69,15 @@ export default function RegisterAttendancePage() {
               if (accuracy <= ACCEPTABLE_ACCURACY_METERS) {
                   setLocation({ latitude, longitude, accuracy });
                   setLocationError(null);
-                  setIsLocating(false); // We can stop showing the main "locating" spinner
+                  setIsLocating(false); // Stop showing the main "locating" spinner
+                  // We can clear the watch now that we have a good location
+                  if (locationWatcherId.current !== null) {
+                    navigator.geolocation.clearWatch(locationWatcherId.current);
+                    locationWatcherId.current = null;
+                  }
               } else {
-                if(!location) { // Only show this error if we haven't found a good location yet
-                    setLocationError(`Mejorando precisión... (${accuracy.toFixed(0)}m)`);
+                if(!location) { // Only show this message if we don't have a good location yet.
+                    setLocationError(`Mejorando precisión...`);
                 }
               }
           },
@@ -79,10 +87,11 @@ export default function RegisterAttendancePage() {
                 setLocationError("Permiso de ubicación denegado. Es necesario para registrar la asistencia.");
                 break;
               case error.POSITION_UNAVAILABLE:
-                setLocationError("Información de ubicación no disponible. Revisa tu conexión a internet o señal GPS.");
+                setLocationError("Información de ubicación no disponible. Revisa tu conexión o señal GPS.");
                 break;
+
               case error.TIMEOUT:
-                setLocationError("Se agotó el tiempo para obtener la ubicación.");
+                setLocationError("Se agotó el tiempo para obtener la ubicación. Inténtalo de nuevo.");
                 break;
               default:
                 setLocationError("Ocurrió un error desconocido al obtener la ubicación.");
@@ -94,7 +103,7 @@ export default function RegisterAttendancePage() {
           },
           { 
             enableHighAccuracy: true, 
-            timeout: 20000, // 20 seconds
+            timeout: 20000, // 20 seconds timeout for the entire watch
             maximumAge: 0 
           }
       );
@@ -112,7 +121,7 @@ export default function RegisterAttendancePage() {
         navigator.geolocation.clearWatch(locationWatcherId.current);
       }
     };
-  }, [step]);
+  }, [step, location]);
 
 
   const handleNextStep = () => {
@@ -128,7 +137,7 @@ export default function RegisterAttendancePage() {
         toast({
             variant: "destructive",
             title: "Ubicación No Verificada",
-            description: "La ubicación aún no es lo suficientemente precisa. Por favor, espera un momento.",
+            description: "Espera a que la ubicación sea verificada con la precisión requerida.",
         });
         return;
     }
@@ -261,6 +270,37 @@ export default function RegisterAttendancePage() {
     }
   };
 
+  const renderLocationStatus = () => {
+    if (location) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-green-600">
+          <CheckCircle className="h-4 w-4" />
+          <span>Ubicación obtenida con precisión de {location.accuracy.toFixed(0)}m.</span>
+        </div>
+      );
+    }
+    
+    if (isLocating && !currentAccuracy) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="animate-spin h-4 w-4" />
+          <span>Obteniendo ubicación...</span>
+        </div>
+      );
+    }
+
+    if (locationError) {
+      return (
+        <div className="flex items-center gap-2 text-sm text-destructive">
+          <AlertTriangleIcon className="h-4 w-4" />
+          <span>{locationError} {currentAccuracy && `(Precisión actual: ${currentAccuracy.toFixed(0)}m)`}</span>
+        </div>
+      );
+    }
+
+    return null;
+  }
+
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <Header title="Registrar Asistencia" />
@@ -300,34 +340,17 @@ export default function RegisterAttendancePage() {
 
                     <div className="space-y-2">
                       <Label>Verificación de Ubicación</Label>
-                       <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/50">
+                       <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/50 min-h-[60px]">
                           <MapPin className="h-5 w-5 text-muted-foreground" />
                           <div className="flex-1">
-                              {isLocating && !location && (
-                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                      <Loader2 className="animate-spin h-4 w-4" />
-                                      <span>Obteniendo ubicación... {currentAccuracy && `(Precisión: ${currentAccuracy.toFixed(0)}m)`}</span>
-                                  </div>
-                              )}
-                              {locationError && !location && (
-                                  <div className="flex items-center gap-2 text-sm text-destructive">
-                                      <AlertTriangleIcon className="h-4 w-4" />
-                                      <span>{locationError}</span>
-                                  </div>
-                              )}
-                              {location && (
-                                  <div className="flex items-center gap-2 text-sm text-green-600">
-                                      <CheckCircle className="h-4 w-4" />
-                                      <span>Ubicación obtenida con precisión de {location.accuracy.toFixed(0)}m.</span>
-                                  </div>
-                              )}
+                             {renderLocationStatus()}
                           </div>
                       </div>
                     </div>
 
 
-                    <Button className="w-full" onClick={handleNextStep} disabled={!location}>
-                      {isLocating && !location ? 'Verificando Ubicación...' : 'Siguiente'}
+                    <Button className="w-full" onClick={handleNextStep} disabled={!location || isLocating}>
+                      {isLocating ? 'Verificando Ubicación...' : 'Siguiente'}
                     </Button>
                 </div>
             )}
@@ -398,3 +421,5 @@ export default function RegisterAttendancePage() {
     </div>
   );
 }
+
+    
