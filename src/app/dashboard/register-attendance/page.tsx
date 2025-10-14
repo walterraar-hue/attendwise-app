@@ -366,159 +366,159 @@ export default function RegisterAttendancePage() {
 
   return (
     <Dialog>
-    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <Header title="Registrar Asistencia" />
-      <div className="max-w-2xl mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle>Registro de Ingreso</CardTitle>
-            <CardDescription>
-                {step === 1 
-                ? "Completa los detalles de tu cita y verifica tu ubicación." 
-                : "Verifica tu asistencia con una foto en las instalaciones."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            
-            {step === 1 && (
-                <div className="space-y-6">
-                    <div className="space-y-2">
-                        <Label htmlFor="appointment-time">Hora de la Cita</Label>
-                        <Input id="appointment-time" type="time" value={appointmentTime} onChange={e => setAppointmentTime(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="work-center">Centro de Trabajo</Label>
-                        <Select value={workCenter} onValueChange={setWorkCenter} disabled={isLoadingWorkCenters}>
-                        <SelectTrigger id="work-center">
-                            <SelectValue placeholder={isLoadingWorkCenters ? "Cargando centros..." : "Selecciona un centro"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {workCenters?.map(center => (
-                            <SelectItem key={center.id} value={center.id}>{center.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                        </Select>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-2">
-                      <Label>Verificación de Ubicación</Label>
-                       <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/50 min-h-[60px]">
-                          <MapPin className="h-5 w-5 text-muted-foreground" />
-                          <div className="flex-1">
-                             {renderLocationStatus()}
-                          </div>
+      <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+        <Header title="Registrar Asistencia" />
+        <div className="max-w-2xl mx-auto">
+          <Card>
+            <CardHeader>
+              <CardTitle>Registro de Ingreso</CardTitle>
+              <CardDescription>
+                  {step === 1 
+                  ? "Completa los detalles de tu cita y verifica tu ubicación." 
+                  : "Verifica tu asistencia con una foto en las instalaciones."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              
+              {step === 1 && (
+                  <div className="space-y-6">
+                      <div className="space-y-2">
+                          <Label htmlFor="appointment-time">Hora de la Cita</Label>
+                          <Input id="appointment-time" type="time" value={appointmentTime} onChange={e => setAppointmentTime(e.target.value)} />
                       </div>
-                    </div>
+                      <div className="space-y-2">
+                          <Label htmlFor="work-center">Centro de Trabajo</Label>
+                          <Select value={workCenter} onValueChange={setWorkCenter} disabled={isLoadingWorkCenters}>
+                          <SelectTrigger id="work-center">
+                              <SelectValue placeholder={isLoadingWorkCenters ? "Cargando centros..." : "Selecciona un centro"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {workCenters?.map(center => (
+                              <SelectItem key={center.id} value={center.id}>{center.name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                          </Select>
+                      </div>
 
-                    {locationError && !locationError.startsWith('Mejorando') ? (
-                       <Button className="w-full" onClick={handleRetryLocation} variant="outline">
-                         <RefreshCw className="mr-2 h-4 w-4" />
-                         Reintentar Ubicación
-                       </Button>
-                    ) : (
-                       <Button className="w-full" onClick={handleNextStep} disabled={!location || isLocating}>
-                        {isLocating ? 'Verificando Ubicación...' : 'Siguiente'}
-                       </Button>
-                    )}
-                </div>
-            )}
+                      <Separator />
 
-            {step === 2 && (
-                <div className="space-y-4">
-                     <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted">
-                        {capturedImage ? (
-                            <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
-                        ) : (
-                            <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
-                        )}
-                        
-                        {!capturedImage && hasCameraPermission === null && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
-                                <Loader2 className="animate-spin mr-2" />
-                                <p>Iniciando cámara...</p>
+                      <div className="space-y-2">
+                        <Label>Verificación de Ubicación</Label>
+                         <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/50 min-h-[60px]">
+                            <MapPin className="h-5 w-5 text-muted-foreground" />
+                            <div className="flex-1">
+                               {renderLocationStatus()}
                             </div>
-                        )}
+                        </div>
+                      </div>
 
-                        {!capturedImage && hasCameraPermission === false && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted text-destructive p-4">
-                                <VideoOff className="mx-auto h-12 w-12" />
-                                <p className="mt-2 font-semibold">Cámara no disponible</p>
-                                <p className="text-sm text-center">No se pudo acceder a la cámara. Revisa los permisos de tu navegador.</p>
-                            </div>
-                        )}
-                        <canvas ref={canvasRef} className="hidden"></canvas>
-                    </div>
+                      {locationError && !locationError.startsWith('Mejorando') ? (
+                         <Button className="w-full" onClick={handleRetryLocation} variant="outline">
+                           <RefreshCw className="mr-2 h-4 w-4" />
+                           Reintentar Ubicación
+                         </Button>
+                      ) : (
+                         <Button className="w-full" onClick={handleNextStep} disabled={!location || isLocating}>
+                          {isLocating ? 'Verificando Ubicación...' : 'Siguiente'}
+                         </Button>
+                      )}
+                  </div>
+              )}
 
-                    <div className="flex justify-center gap-4">
-                        {!capturedImage && (
-                            <Button onClick={handleCapture} disabled={!hasCameraPermission}>
-                                <Camera className="mr-2 h-4 w-4" />
-                                Tomar Foto
-                            </Button>
-                        )}
-                        {capturedImage && (
-                            <Button onClick={handleRetake} variant="outline">
-                                Tomar de Nuevo
-                            </Button>
-                        )}
-                    </div>
-                    
-                    <Separator />
+              {step === 2 && (
+                  <div className="space-y-4">
+                       <div className="relative aspect-video w-full overflow-hidden rounded-md bg-muted">
+                          {capturedImage ? (
+                              <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
+                          ) : (
+                              <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
+                          )}
+                          
+                          {!capturedImage && hasCameraPermission === null && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
+                                  <Loader2 className="animate-spin mr-2" />
+                                  <p>Iniciando cámara...</p>
+                              </div>
+                          )}
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                        <Button variant="outline" className="w-full" onClick={() => setStep(1)} disabled={isSubmitting}>
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Volver
-                        </Button>
-                        <Button className="w-full" onClick={handleSubmit} disabled={!capturedImage || isSubmitting}>
-                           {isSubmitting ? (
-                                <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Enviando...
-                                </>
-                            ) : (
-                                "Notificar Ingreso y Enviar"
-                            )}
-                        </Button>
-                    </div>
-                </div>
-            )}
-            
-          </CardContent>
-        </Card>
-      </div>
-       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Detalles del Registro</DialogTitle>
-          <DialogDescription>
-            Aquí están los detalles de tu registro de asistencia.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-            {lastSubmission?.image && (
-                <div>
-                    <Label>Foto Capturada</Label>
-                    <div className="mt-2 rounded-md overflow-hidden border">
-                         <Image src={lastSubmission.image} alt="Detalle de foto de asistencia" width={400} height={300} className="w-full h-auto" />
-                    </div>
-                </div>
-            )}
-            {lastSubmission?.location && (
-                 <div>
-                    <Label>Ubicación Registrada</Label>
-                     <p className="text-sm text-muted-foreground">Precisión: {lastSubmission.location.accuracy.toFixed(0)} metros.</p>
-                    <Button variant="link" asChild className="p-0 h-auto">
-                        <a href={mapLink} target="_blank" rel="noopener noreferrer">
-                            Ver en Google Maps
-                        </a>
-                    </Button>
-                 </div>
-            )}
+                          {!capturedImage && hasCameraPermission === false && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted text-destructive p-4">
+                                  <VideoOff className="mx-auto h-12 w-12" />
+                                  <p className="mt-2 font-semibold">Cámara no disponible</p>
+                                  <p className="text-sm text-center">No se pudo acceder a la cámara. Revisa los permisos de tu navegador.</p>
+                              </div>
+                          )}
+                          <canvas ref={canvasRef} className="hidden"></canvas>
+                      </div>
+
+                      <div className="flex justify-center gap-4">
+                          {!capturedImage && (
+                              <Button onClick={handleCapture} disabled={!hasCameraPermission}>
+                                  <Camera className="mr-2 h-4 w-4" />
+                                  Tomar Foto
+                              </Button>
+                          )}
+                          {capturedImage && (
+                              <Button onClick={handleRetake} variant="outline">
+                                  Tomar de Nuevo
+                              </Button>
+                          )}
+                      </div>
+                      
+                      <Separator />
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                          <Button variant="outline" className="w-full" onClick={() => setStep(1)} disabled={isSubmitting}>
+                              <ArrowLeft className="mr-2 h-4 w-4" />
+                              Volver
+                          </Button>
+                          <Button className="w-full" onClick={handleSubmit} disabled={!capturedImage || isSubmitting}>
+                             {isSubmitting ? (
+                                  <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Enviando...
+                                  </>
+                              ) : (
+                                  "Notificar Ingreso y Enviar"
+                              )}
+                          </Button>
+                      </div>
+                  </div>
+              )}
+              
+            </CardContent>
+          </Card>
         </div>
-      </DialogContent>
-    </div>
+         <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Detalles del Registro</DialogTitle>
+            <DialogDescription>
+              Aquí están los detalles de tu registro de asistencia.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+              {lastSubmission?.image && (
+                  <div>
+                      <Label>Foto Capturada</Label>
+                      <div className="mt-2 rounded-md overflow-hidden border">
+                           <Image src={lastSubmission.image} alt="Detalle de foto de asistencia" width={400} height={300} className="w-full h-auto" />
+                      </div>
+                  </div>
+              )}
+              {lastSubmission?.location && (
+                   <div>
+                      <Label>Ubicación Registrada</Label>
+                       <p className="text-sm text-muted-foreground">Precisión: {lastSubmission.location.accuracy.toFixed(0)} metros.</p>
+                      <Button variant="link" asChild className="p-0 h-auto">
+                          <a href={mapLink} target="_blank" rel="noopener noreferrer">
+                              Ver en Google Maps
+                          </a>
+                      </Button>
+                   </div>
+              )}
+          </div>
+        </DialogContent>
+      </div>
     </Dialog>
   );
 }
