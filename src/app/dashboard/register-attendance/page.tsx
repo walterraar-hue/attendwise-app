@@ -20,12 +20,14 @@ import { collection, doc } from 'firebase/firestore';
 import type { User as AppUser, WorkCenter } from '@/lib/types';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { ToastAction } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +40,7 @@ type SubmissionDetails = {
     workCenter: string;
     location: { latitude: number, longitude: number, accuracy: number } | null;
     image: string | null;
+    aiAnalysis: string | null;
 } | null;
 
 type Status = 'pending' | 'in-progress' | 'success' | 'error';
@@ -115,6 +118,79 @@ function StatusPanel({
   );
 }
 
+function SubmissionSuccessDialog({
+  submission,
+  isOpen,
+  onClose,
+}: {
+  submission: SubmissionDetails;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  if (!submission) return null;
+
+  const mapLink = submission.location
+    ? `https://www.google.com/maps?q=${submission.location.latitude},${submission.location.longitude}`
+    : '#';
+
+  return (
+    <AlertDialog open={isOpen} onOpenChange={onClose}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <CheckCircle className="text-green-500" />
+            ¡Registro Exitoso!
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Tu asistencia ha sido registrada correctamente. Aquí tienes el resumen.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+          {submission.aiAnalysis && (
+            <div className="p-3 rounded-md bg-purple-50 border border-purple-200">
+                <h3 className="font-semibold text-sm flex items-center gap-2 text-purple-800">
+                    <Wand2 className="size-4" />
+                    Análisis de Puntualidad
+                </h3>
+                <p className="text-purple-700 text-sm mt-1">{submission.aiAnalysis}</p>
+            </div>
+          )}
+
+          {submission.image && (
+            <div>
+              <Label>Foto Capturada</Label>
+              <div className="mt-1 rounded-md overflow-hidden border">
+                <Image
+                  src={submission.image}
+                  alt="Detalle de foto de asistencia"
+                  width={400}
+                  height={300}
+                  className="w-full h-auto"
+                />
+              </div>
+            </div>
+          )}
+          {submission.location && (
+            <div>
+              <Label>Ubicación Registrada</Label>
+              <p className="text-sm text-muted-foreground">
+                Precisión: {submission.location.accuracy.toFixed(0)} metros.
+              </p>
+              <Button variant="link" asChild className="p-0 h-auto">
+                <a href={mapLink} target="_blank" rel="noopener noreferrer">
+                  Ver en Google Maps
+                </a>
+              </Button>
+            </div>
+          )}
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogAction onClick={onClose}>Cerrar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
 
 export default function RegisterAttendancePage() {
   const { toast } = useToast();
@@ -142,7 +218,7 @@ export default function RegisterAttendancePage() {
   const [currentAccuracy, setCurrentAccuracy] = useState<number | null>(null);
 
   const [lastSubmission, setLastSubmission] = useState<SubmissionDetails>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
 
 
   // Fetch user and company data
@@ -262,6 +338,19 @@ export default function RegisterAttendancePage() {
     setStep(2);
   }
 
+  const resetForm = () => {
+    setStep(1);
+    setAppointmentTime('');
+    setWorkCenter('');
+    setCapturedImage(null);
+    setHasCameraPermission(null);
+    setLocation(null);
+    setLocationError(null);
+    setCurrentAccuracy(null);
+    setLastSubmission(null);
+  };
+
+
   useEffect(() => {
     async function setupCamera() {
       if (step !== 2 || capturedImage) return;
@@ -303,7 +392,7 @@ export default function RegisterAttendancePage() {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [step, capturedImage]);
+  }, [step, capturedImage, toast]);
 
   const handleCapture = () => {
     if (videoRef.current && canvasRef.current) {
@@ -334,17 +423,9 @@ export default function RegisterAttendancePage() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    let aiAnalysisToast;
+    let aiAnalysis = null;
 
     try {
-        const submissionData = {
-            appointmentTime,
-            workCenter,
-            location,
-            image: capturedImage
-        };
-        setLastSubmission(submissionData);
-
         const now = new Date();
         const [hours, minutes] = appointmentTime.split(':').map(Number);
         const appointmentDateTime = new Date();
@@ -354,30 +435,18 @@ export default function RegisterAttendancePage() {
 
         if (diffMinutes > 0) {
             const result = await punctualityAnalysis({ minutesEarly: Math.round(diffMinutes) });
-            aiAnalysisToast = result.analysis;
+            aiAnalysis = result.analysis;
         }
 
-        toast({
-          title: '¡Registro Enviado!',
-          description: aiAnalysisToast || 'Tu asistencia ha sido registrada correctamente.',
-          action: (
-            <ToastAction altText="Ver Detalles" asChild>
-                <Button variant="secondary" size="sm" onClick={() => setIsDetailsOpen(true)}>
-                    <Eye className="mr-2" />
-                    Ver Detalles
-                </Button>
-            </ToastAction>
-          ),
-        });
-
-        setStep(1);
-        setAppointmentTime('');
-        setWorkCenter('');
-        setCapturedImage(null);
-        setHasCameraPermission(null);
-        setLocation(null);
-        setLocationError(null);
-        setCurrentAccuracy(null);
+        const submissionData = {
+            appointmentTime,
+            workCenter,
+            location,
+            image: capturedImage,
+            aiAnalysis,
+        };
+        setLastSubmission(submissionData);
+        setIsSuccessDialogOpen(true);
         
     } catch(error) {
         console.error("Submission error:", error);
@@ -423,10 +492,6 @@ export default function RegisterAttendancePage() {
     return null;
   }
 
-  const mapLink = lastSubmission?.location 
-    ? `https://www.google.com/maps?q=${lastSubmission.location.latitude},${lastSubmission.location.longitude}`
-    : '#';
-
   const getLocationStatus = (): Status => {
     if (location) return 'success';
     if (isLocating || locationError?.startsWith('Mejorando')) return 'in-progress';
@@ -451,7 +516,6 @@ export default function RegisterAttendancePage() {
 
 
   return (
-    <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
       <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
         <Header title="Registrar Asistencia" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -584,36 +648,15 @@ export default function RegisterAttendancePage() {
              />
           </div>
         </div>
-         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Detalles del Registro</DialogTitle>
-            <DialogDescription>
-              Aquí están los detalles de tu registro de asistencia.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-              {lastSubmission?.image && (
-                  <div>
-                      <Label>Foto Capturada</Label>
-                      <div className="mt-2 rounded-md overflow-hidden border">
-                           <Image src={lastSubmission.image} alt="Detalle de foto de asistencia" width={400} height={300} className="w-full h-auto" />
-                      </div>
-                  </div>
-              )}
-              {lastSubmission?.location && (
-                   <div>
-                      <Label>Ubicación Registrada</Label>
-                       <p className="text-sm text-muted-foreground">Precisión: {lastSubmission.location.accuracy.toFixed(0)} metros.</p>
-                      <Button variant="link" asChild className="p-0 h-auto">
-                          <a href={mapLink} target="_blank" rel="noopener noreferrer">
-                              Ver en Google Maps
-                          </a>
-                      </Button>
-                   </div>
-              )}
-          </div>
-        </DialogContent>
+        <SubmissionSuccessDialog
+          submission={lastSubmission}
+          isOpen={isSuccessDialogOpen}
+          onClose={() => {
+            setIsSuccessDialogOpen(false);
+            resetForm();
+          }}
+        />
       </div>
-    </Dialog>
   );
 }
+
