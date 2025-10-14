@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { ReactNode } from "react";
@@ -17,6 +18,7 @@ import type { User as AppUser } from "@/lib/types";
 import { doc } from "firebase/firestore";
 import { useDoc } from "@/firebase/firestore/use-doc";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 function DashboardHeader({ userRole, userProps, isLoading }: { userRole: string, userProps: any, isLoading: boolean }) {
   const { toggleSidebar } = useSidebar();
@@ -87,8 +89,7 @@ export default function DashboardLayout({
   const isLoading = isUserLoading || isUserDataLoading;
 
   if (isLoading || !user || !userData) {
-    // You can show a loading spinner here
-    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    return <LoadingScreen />;
   }
 
   const userRole = userData?.role || 'Miembro';
