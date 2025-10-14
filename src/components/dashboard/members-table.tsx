@@ -15,10 +15,13 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { User, UserStatus } from "@/lib/types";
-import { MoreHorizontal } from "lucide-react";
+import { User, UserRole, UserStatus } from "@/lib/types";
+import { MoreHorizontal, ShieldCheck, Trash2, UserCog } from "lucide-react";
 import { Button } from "../ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator } from "../ui/dropdown-menu";
+import { useFirestore } from "@/firebase";
+import { doc, writeBatch } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 const statusVariant: Record<UserStatus, "default" | "secondary" | "destructive"> = {
   active: "default",
@@ -32,17 +35,61 @@ const statusColor: Record<UserStatus, string> = {
     inactive: 'bg-red-500',
 }
 
+const availableRoles: UserRole[] = ['CEO', 'Operations Manager', 'Miembro'];
+
 export function MembersTable({ data }: { data: User[] }) {
+  const firestore = useFirestore();
+  const { toast } = useToast();
+
+  const handleChangeRole = async (user: User, newRole: UserRole) => {
+    if (!firestore || !user.id) return;
+    if (user.role === newRole) return;
+
+    try {
+      const batch = writeBatch(firestore);
+      const userDocRef = doc(firestore, 'users', user.id);
+      batch.update(userDocRef, { role: newRole });
+
+      const adminRoleRef = doc(firestore, 'roles_admin', user.id);
+      const isAdminRoleNew = newRole === 'CEO' || newRole === 'Operations Manager';
+      const isAdminRoleOld = user.role === 'CEO' || user.role === 'Operations Manager';
+
+      if (isAdminRoleNew) {
+        // Add or update the admin role document
+        batch.set(adminRoleRef, { admin: true, role: newRole });
+      } else if (isAdminRoleOld && !isAdminRoleNew) {
+        // If the user is being demoted from an admin role, delete the admin role doc
+        batch.delete(adminRoleRef);
+      }
+      
+      await batch.commit();
+
+      toast({
+        title: "Rol Actualizado",
+        description: `El rol de ${user.name} ha sido cambiado a ${newRole}.`,
+      });
+
+    } catch (error) {
+      console.error("Error changing role:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo cambiar el rol. Por favor, inténtalo de nuevo.",
+      });
+    }
+  };
+
+
   return (
     <div className="rounded-md border bg-card">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="hidden md:table-cell">Role</TableHead>
+            <TableHead>Nombre</TableHead>
+            <TableHead>Estado</TableHead>
+            <TableHead className="hidden md:table-cell">Rol</TableHead>
             <TableHead>
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">Acciones</span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -73,15 +120,36 @@ export function MembersTable({ data }: { data: User[] }) {
               <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button aria-haspopup="true" size="icon" variant="ghost">
+                    <Button aria-haspopup="true" size="icon" variant="ghost" disabled={user.role === 'Global Admin'}>
                       <MoreHorizontal className="h-4 w-4" />
                       <span className="sr-only">Toggle menu</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuItem>Edit</DropdownMenuItem>
-                    <DropdownMenuItem>Deactivate</DropdownMenuItem>
+                    <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                     <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <UserCog className="mr-2 h-4 w-4" />
+                        Cambiar Rol
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {availableRoles.map(role => (
+                           <DropdownMenuItem 
+                              key={role} 
+                              onClick={() => handleChangeRole(user, role)}
+                              disabled={user.role === role}
+                           >
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            {role}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-red-600">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Desactivar
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
@@ -92,5 +160,3 @@ export function MembersTable({ data }: { data: User[] }) {
     </div>
   );
 }
-
-    
