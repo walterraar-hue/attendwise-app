@@ -8,8 +8,8 @@ export default function Logo({ className, logoTextClassName }: { className?: str
         <Timer className="size-6" />
       </div>
       <div className="flex flex-col">
-        <span className={cn("text-xl font-bold text-foreground", logoTextClassName)}>Serlogint Attend</span>
-        <span className="text-xs text-primary-foreground/80">Developed by Core-AI</span>
+        <span className={cn("text-xl font-bold", logoTextClassName)}>Serlogint Attend</span>
+        <span className={cn("text-xs", logoTextClassName, "opacity-80")}>Developed by Core-AI</span>
       </div>
     </div>
   );
