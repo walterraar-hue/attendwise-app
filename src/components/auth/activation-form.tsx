@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState } from "react";
@@ -81,7 +82,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       
       const newCompanyRef = doc(collection(firestore, 'companies')); 
 
-      const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Miembro': 0, 'Manager': 0 };
+      const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Miembro': 0 };
 
       if (plan === 'basic') {
           roleLimits['Global Admin'] = 1;
@@ -192,7 +193,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             role: userRoleToAssign,
             status: 'active',
             createdAt: serverTimestamp(),
-            isRoleLocked: true, 
+            isRoleLocked: false, // Role is NOT locked on creation for members
         });
         
         if (userRoleToAssign === 'Miembro') {

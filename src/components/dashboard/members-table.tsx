@@ -135,7 +135,10 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
                 </Badge>
               </TableCell>
               <TableCell className="hidden md:table-cell">
-                <Badge variant="outline">{user.role}</Badge>
+                 <div className="flex items-center gap-2">
+                  <Badge variant={user.isRoleLocked ? "default" : "secondary"}>{user.role}</Badge>
+                  {user.isRoleLocked && <ShieldCheck className="h-4 w-4 text-green-600" title="Rol bloqueado" />}
+                </div>
               </TableCell>
               <TableCell>
                 <DropdownMenu>
@@ -147,6 +150,26 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                    <DropdownMenuSub>
+                        <DropdownMenuSubTrigger disabled={user.isRoleLocked}>
+                            <UserCog className="mr-2 h-4 w-4" />
+                            Cambiar Rol
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                            <DropdownMenuLabel>Asignar Nuevo Rol</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                             {availableRoles.map(role => (
+                                <DropdownMenuItem 
+                                    key={role} 
+                                    onClick={() => handleChangeRole(user, role)}
+                                    disabled={user.role === role}
+                                >
+                                    {role}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-red-600">
                       <Trash2 className="mr-2 h-4 w-4" />
                       Desactivar

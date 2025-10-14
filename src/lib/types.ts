@@ -2,12 +2,13 @@
 
 
 
+
 export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager' | 'Miembro';
 
 export type UserStatus = 'active' | 'pending' | 'inactive';
 
 export interface User {
-  id?: string; // User's UID from Firebase Auth - now optional
+  id: string; // User's UID from Firebase Auth
   name: string;
   email: string;
   role: UserRole;
@@ -27,7 +28,6 @@ export interface Company {
       'Global Admin': number;
       'Operations Manager': number;
       'CEO': number;
-      'Manager': number;
       'Miembro': number;
   }
   policies: string;
