@@ -15,6 +15,10 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+
 
 const loginSchema = z.object({
   email: z.string().email("Por favor, introduce un email válido."),
@@ -25,6 +29,7 @@ export default function LoginPage() {
   const auth = useAuth();
   const { toast } = useToast();
   const router = useRouter();
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -35,6 +40,7 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
+    setLoginError(null);
     if (!auth) {
         toast({
             variant: "destructive",
@@ -55,20 +61,15 @@ export default function LoginPage() {
       router.push('/dashboard');
 
     } catch (error: any) {
-      console.error("Login error:", error);
+      if(process.env.NODE_ENV !== 'production') console.error("Login error:", error);
       
-      let description = "Email o contraseña incorrectos.";
+      let description = "Error desconocido. Por favor, inténtalo de nuevo.";
       if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         description = "El email o la contraseña no son correctos. Por favor, inténtalo de nuevo.";
       } else if (error.code === 'auth/invalid-email') {
         description = "El formato del email no es válido.";
       }
-
-      toast({
-        variant: "destructive",
-        title: "Fallo en el Inicio de Sesión",
-        description: description,
-      });
+      setLoginError(description);
     }
   };
 
@@ -84,6 +85,14 @@ export default function LoginPage() {
             </div>
           </CardHeader>
           <CardContent>
+            {loginError && (
+                <Alert variant="destructive" className="mb-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                        {loginError}
+                    </AlertDescription>
+                </Alert>
+            )}
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
