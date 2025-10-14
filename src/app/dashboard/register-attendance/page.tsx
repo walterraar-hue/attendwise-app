@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon } from 'lucide-react';
+import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
@@ -36,6 +36,7 @@ export default function RegisterAttendancePage() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [retryLocation, setRetryLocation] = useState(0);
 
   // Form state
   const [appointmentTime, setAppointmentTime] = useState('');
@@ -130,7 +131,7 @@ export default function RegisterAttendancePage() {
     return () => {
         stopWatching();
     };
-  }, [step]);
+  }, [step, retryLocation]);
 
 
   const handleNextStep = () => {
@@ -222,6 +223,10 @@ export default function RegisterAttendancePage() {
      setCapturedImage(null);
      setHasCameraPermission(null); // Reset to trigger camera setup
      // The useEffect will automatically re-run and set up the camera
+  };
+
+  const handleRetryLocation = () => {
+    setRetryLocation(count => count + 1);
   };
 
   const handleSubmit = async () => {
@@ -358,10 +363,16 @@ export default function RegisterAttendancePage() {
                       </div>
                     </div>
 
-
-                    <Button className="w-full" onClick={handleNextStep} disabled={!location || isLocating}>
-                      {isLocating ? 'Verificando Ubicación...' : 'Siguiente'}
-                    </Button>
+                    {locationError && !locationError.startsWith('Mejorando') ? (
+                       <Button className="w-full" onClick={handleRetryLocation} variant="outline">
+                         <RefreshCw className="mr-2 h-4 w-4" />
+                         Reintentar Ubicación
+                       </Button>
+                    ) : (
+                       <Button className="w-full" onClick={handleNextStep} disabled={!location || isLocating}>
+                        {isLocating ? 'Verificando Ubicación...' : 'Siguiente'}
+                       </Button>
+                    )}
                 </div>
             )}
 
@@ -431,5 +442,7 @@ export default function RegisterAttendancePage() {
       </div>
     </div>
   );
+
+    
 
     
