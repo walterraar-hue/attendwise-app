@@ -5,11 +5,8 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { navItemsByRole } from './sidebar-nav'; 
-import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
-import { useDoc } from '@/firebase/firestore/use-doc';
-import { doc } from 'firebase/firestore';
-import type { User as AppUser } from '@/lib/types';
 import React from 'react';
+import { UserRole } from '@/lib/types';
 
 const allNavItems = Object.values(navItemsByRole).flat();
 const breadcrumbNameMap: { [key: string]: string } = {};
@@ -21,18 +18,8 @@ breadcrumbNameMap['/dashboard'] = 'Dashboard';
 breadcrumbNameMap['/dashboard/attendance'] = 'Asistencia Equipo';
 
 
-export default function Breadcrumbs() {
+export default function Breadcrumbs({ userRole }: { userRole: UserRole }) {
   const pathname = usePathname();
-  const { user } = useUser();
-  const firestore = useFirestore();
-
-  const userDocRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
-  const { data: userData } = useDoc<AppUser>(userDocRef);
-
-  const userRole = userData?.role || 'Miembro';
 
   if (pathname === '/dashboard') {
      return <div className="hidden md:block h-6" />;

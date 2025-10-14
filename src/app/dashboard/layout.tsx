@@ -4,7 +4,7 @@
 import type { ReactNode } from "react";
 import { SidebarProvider, Sidebar } from "@/components/ui/sidebar";
 import { SidebarNav } from "@/components/dashboard/sidebar-nav";
-import { useUser } from "@/firebase";
+import { useUser, useFirestore, useMemoFirebase } from "@/firebase";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { UserNav } from "@/components/dashboard/user-nav";
@@ -13,22 +13,33 @@ import { Button } from "@/components/ui/button";
 import { PanelLeft } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import Breadcrumbs from "@/components/dashboard/breadcrumbs";
+import type { User as AppUser } from "@/lib/types";
+import { doc } from "firebase/firestore";
+import { useDoc } from "@/firebase/firestore/use-doc";
 
 function DashboardHeader() {
   const { user } = useUser();
+  const firestore = useFirestore();
   const { toggleSidebar } = useSidebar();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [user, firestore]);
+  const { data: userData } = useDoc<AppUser>(userDocRef);
   
-  if (!user) {
+  if (!user || !userData) {
     return null; // Or a loading skeleton
   }
 
   const userProps = {
       id: user.uid,
-      name: user.displayName || 'No Name',
-      email: user.email || 'No Email',
-      role: 'Global Admin', 
-      status: 'active',
+      name: userData.name || user.displayName || 'No Name',
+      email: userData.email || user.email || 'No Email',
+      role: userData.role || 'Miembro', 
+      status: userData.status || 'active',
       avatarUrl: user.photoURL || '',
+      companyId: userData.companyId || '',
   }
 
   return (
@@ -47,7 +58,7 @@ function DashboardHeader() {
                 <Logo logoTextClassName="text-primary-foreground" />
             </div>
             <div className="flex-1 flex justify-center">
-                <Breadcrumbs />
+                <Breadcrumbs userRole={userProps.role} />
             </div>
             <div className="ml-auto flex items-center gap-4">
                 <UserNav user={userProps} />
