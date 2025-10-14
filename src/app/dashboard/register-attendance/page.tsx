@@ -1,7 +1,8 @@
 
+
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Header from '@/components/dashboard/header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
