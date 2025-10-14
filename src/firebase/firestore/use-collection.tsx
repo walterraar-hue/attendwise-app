@@ -40,12 +40,11 @@ export interface InternalQuery extends Query<DocumentData> {
 /**
  * React hook to subscribe to a Firestore collection or query in real-time.
  * Handles nullable references/queries.
- * 
  *
  * IMPORTANT! YOU MUST MEMOIZE the inputted memoizedTargetRefOrQuery or BAD THINGS WILL HAPPEN
- * use useMemo to memoize it per React guidence.  Also make sure that it's dependencies are stable
+ * use useMemoFirebase to memoize it per React guidence.  Also make sure that it's dependencies are stable
  * references
- *  
+ *
  * @template T Optional type for document data. Defaults to any.
  * @param {CollectionReference<DocumentData> | Query<DocumentData> | null | undefined} targetRefOrQuery -
  * The Firestore CollectionReference or Query. Waits if null/undefined.
@@ -85,26 +84,21 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        let contextualError: FirestorePermissionError;
-        // Check if this is a permission error before creating the contextual error.
         if (err.code === 'permission-denied') {
-            const path: string =
+          const path: string =
               'path' in memoizedTargetRefOrQuery
                 ? (memoizedTargetRefOrQuery as CollectionReference).path
                 : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString();
 
-            contextualError = new FirestorePermissionError({
-              operation: 'list',
-              path,
-            });
-            // Emit the rich error for global handling
-            errorEmitter.emit('permission-error', contextualError);
+          const contextualError = new FirestorePermissionError({
+            operation: 'list',
+            path,
+          });
+          errorEmitter.emit('permission-error', contextualError);
+          setError(contextualError);
         } else {
-            // For other Firestore errors, use the original error.
-            contextualError = err as any;
+            setError(err);
         }
-
-        setError(contextualError);
         setData(null);
         setIsLoading(false);
       }
