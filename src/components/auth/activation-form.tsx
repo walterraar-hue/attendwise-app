@@ -129,7 +129,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         if (error.code === 'auth/email-already-in-use') {
             description = "Este correo electrónico ya está registrado. Por favor, utiliza otro.";
         } else {
-            console.error("Admin registration error:", error);
+            if(process.env.NODE_ENV !== 'production') console.error("Admin registration error:", error);
             description = error.message;
         }
         toast({ title: "Error al crear equipo", description, variant: "destructive" });
@@ -213,14 +213,14 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     } catch (error: any) {
         if (userCredential) {
             await deleteUser(userCredential.user).catch(delErr => {
-              console.error("Cleanup Error: Failed to delete orphaned auth user.", delErr);
+              if(process.env.NODE_ENV !== 'production') console.error("Cleanup Error: Failed to delete orphaned auth user.", delErr);
             });
         }
       
         if (error.code === 'auth/email-already-in-use') {
             toast({ title: "Error de Registro", description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.", variant: "destructive" });
         } else if (!companyCodeError) { // Don't show generic error if a specific one is already set
-            console.error("Member Registration Error:", error);
+            if(process.env.NODE_ENV !== 'production') console.error("Member Registration Error:", error);
             if (error.message !== "Invalid company code" && error.message !== "Role not available in plan" && error.message !== "Role slots are full") {
               toast({ title: "Error de Registro", description: "No se pudo crear la cuenta. Por favor, inténtalo de nuevo.", variant: "destructive" });
             }

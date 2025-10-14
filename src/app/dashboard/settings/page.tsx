@@ -55,7 +55,7 @@ function WorkCenterForm({ companyId }: { companyId: string }) {
       });
       form.reset();
     } catch (error) {
-      console.error("Error adding work center:", error);
+      if(process.env.NODE_ENV !== 'production') console.error("Error adding work center:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -112,7 +112,7 @@ function WorkCentersList({ workCenters, companyId, isLoading }: { workCenters: W
         description: "El centro de trabajo ha sido eliminado correctamente.",
       });
     } catch (error) {
-      console.error("Error deleting work center:", error);
+      if(process.env.NODE_ENV !== 'production') console.error("Error deleting work center:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -270,5 +270,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    

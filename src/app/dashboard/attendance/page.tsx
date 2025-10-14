@@ -189,7 +189,9 @@ export default function AttendancePage() {
             if (e instanceof FirestoreError && (e.code === 'permission-denied' || e.code === 'unauthenticated')) {
               permissionErrorOccurred = true;
             }
-            console.error(`Could not fetch attendance for user ${member.id}:`, e);
+            if (process.env.NODE_ENV !== 'production') {
+              console.error(`Could not fetch attendance for user ${member.id}:`, e);
+            }
         }
       }
       
@@ -354,5 +356,3 @@ export default function AttendancePage() {
     </>
   );
 }
-
-    

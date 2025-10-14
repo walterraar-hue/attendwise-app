@@ -233,7 +233,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
                 videoRef.current.srcObject = stream;
                 setHasCameraPermission(true);
             } catch (error) {
-                console.error("Error accessing camera:", error);
+                if(process.env.NODE_ENV !== 'production') console.error("Error accessing camera:", error);
                 setHasCameraPermission(false);
                 toast({ variant: 'destructive', title: 'Acceso a Cámara Denegado' });
             }
@@ -322,7 +322,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         toast({ title: "¡Salida Registrada!", description: "Tu jornada ha finalizado correctamente." });
         onClose();
     } catch (error) {
-        console.error("Check-out error:", error);
+        if(process.env.NODE_ENV !== 'production') console.error("Check-out error:", error);
         toast({ variant: "destructive", title: "Error", description: "No se pudo registrar la salida." });
     } finally {
         setIsSubmitting(false);
