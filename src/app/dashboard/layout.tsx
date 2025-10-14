@@ -52,7 +52,7 @@ function DashboardHeader({ userRole, userProps, isLoading }: { userRole: string,
                     <span className="sr-only">Toggle Sidebar</span>
                 </Button>
                 <div className="hidden md:block">
-                    <Logo logoTextClassName="text-primary-foreground" showIcon={true} showSubtitle={false}/>
+                    <Logo logoTextClassName="text-primary-foreground" showIcon={true} showSubtitle={true}/>
                 </div>
             </div>
 
