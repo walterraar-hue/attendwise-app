@@ -1,58 +1,44 @@
 /**
- * @fileOverview Firestore Security Rules for AttendWise application.
- *
- * Core Philosophy:
- * This ruleset enforces a strict user-ownership model for personal data
- * (attendance records) and a company-based ownership model for company-wide data
- * (users, work centers).  It leverages denormalization to avoid expensive `get()`
- * calls within rules.  It allows creating user documents on signup, and after sign up any listing of users is disallowed.
+ * @file Firestore Security Rules
+ * @description This ruleset enforces a strict user-ownership model for personal data and allows company-level access to company information.
  *
  * Data Structure:
- * - /companies/{companyId}: Stores company profiles.
- * - /companies/{companyId}/workCenters/{workCenterId}: Stores work centers for a company.
- * - /users/{userId}: Stores user profiles.
- * - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records for a user.
+ * - /companies/{companyId}: Stores company-level information, accessible with company ID.
+ * - /companies/{companyId}/workCenters/{workCenterId}: Stores work centers for specific companies.
+ * - /users/{userId}: Stores user profiles, accessible only by the user themselves.
+ * - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records for each user, accessible only by the user.
  *
  * Key Security Decisions:
- * - User listing is explicitly denied to prevent unauthorized access to user data.
- * - Only authenticated users can create accounts.
- * - Data validation is minimized in this prototype, focusing on ownership and relationship integrity.
- *
- * Denormalization for Authorization:
- * - User documents store the `companyId` to allow rules to quickly verify which company a user belongs to.
+ * - User data is strictly private and accessible only to the authenticated user.
+ * - Company data is accessible to company members (not yet fully implemented in this version).
+ * - Listing of users and attendance records is allowed only for the owner.
+ * - Denormalization is used to simplify security rules and avoid costly `get()` operations.  Specifically, user documents include their `companyId`.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the current user is signed in.
-     * @path N/A
-     * @allow N/A
-     * @deny N/A
-     * @principle Requires authentication for certain actions.
+     * @description Defines a function to check if the current user is signed in.
+     * @returns {boolean} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the authenticated user's ID matches the provided userId.
-     * @path N/A
-     * @allow N/A
-     * @deny N/A
-     * @principle Enforces user-based ownership.
+     * @description Defines a function to check if the current user is the owner of the resource.
+     * @param {string} userId - The user ID to compare against the authenticated user's ID.
+     * @returns {boolean} True if the user is the owner, false otherwise.
      */
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the authenticated user's ID matches the provided userId and the resource exists.
-     * @path N/A
-     * @allow N/A
-     * @deny N/A
-     * @principle Enforces user-based ownership and resource existence for updates/deletes.
+     * @description Defines a function to check if the current user is the owner of the resource and it already exists.
+     * @param {string} userId - The user ID to compare against the authenticated user's ID.
+     * @returns {boolean} True if the user is the owner and the resource exists, false otherwise.
      */
     function isExistingOwner(userId) {
       return isOwner(userId) && resource != null;
@@ -61,71 +47,68 @@ service cloud.firestore {
     /**
      * @description Rules for the /companies/{companyId} collection.
      * @path /companies/{companyId}
-     * @allow (get) Authenticated user can read a company document
-     * @allow (create) Authenticated user can create a company document where request.resource.data.id == companyId
-     * @deny (create) Unauthenticated user cannot create a company document
-     * @deny (update) Authenticated user cannot update a company document they don't own
-     * @deny (delete) Authenticated user cannot delete a company document they don't own
-     * @principle Enforces company-based ownership and authentication.
+     * @allow (get) - Any signed-in user can get a company document.
+     * @allow (create) - No one can create a company document (handled by backend).
+     * @deny (update) - No one can update a company document (handled by backend).
+     * @deny (delete) - No one can delete a company document (handled by backend).
+     * @principle Allows read access to company information.
      */
     match /companies/{companyId} {
       allow get: if isSignedIn();
       allow list: if false;
-
-      allow create: if isSignedIn() && request.resource.data.id == companyId;
-      allow update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
      * @description Rules for the /companies/{companyId}/workCenters/{workCenterId} collection.
      * @path /companies/{companyId}/workCenters/{workCenterId}
-     * @allow (get) Authenticated user can read a workCenter document
-     * @allow (create) Authenticated user can create a workCenter document
-     * @deny (create) Unauthenticated user cannot create a workCenter document
-     * @deny (update) Authenticated user cannot update a workCenter document they don't own
-     * @deny (delete) Authenticated user cannot delete a workCenter document they don't own
-     * @principle Enforces company-based ownership and authentication.
+     * @allow (get) - Any signed-in user can get a workCenter document.
+     * @allow (create) - No one can create a workCenter document (handled by backend).
+     * @deny (update) - No one can update a workCenter document (handled by backend).
+     * @deny (delete) - No one can delete a workCenter document (handled by backend).
+     * @principle Allows read access to workCenter information.
      */
     match /companies/{companyId}/workCenters/{workCenterId} {
       allow get: if isSignedIn();
       allow list: if false;
-      allow create: if isSignedIn(); // TODO: Add owner validation once the schema is updated with an ownership field.
-      allow update, delete: if false; // TODO: Add owner validation once the schema is updated with an ownership field.
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
      * @description Rules for the /users/{userId} collection.
      * @path /users/{userId}
-     * @allow (get) Authenticated user can read their own user document.
-     * @allow (create) Authenticated user can create their own user document.
-     * @deny (create) Authenticated user cannot create another user's document.
-     * @deny (update) Authenticated user cannot update another user's document.
-     * @deny (delete) Authenticated user cannot delete another user's document.
-     * @principle Enforces user-based ownership.
+     * @allow (get) - Only the user themselves can read their own profile.
+     * @allow (create) - A user can create their own profile (self-registration). The 'id' must match their auth UID.
+     * @allow (update) - Only the user themselves can update their profile.
+     * @allow (delete) - Only the user themselves can delete their profile.
+     * @principle Enforces user-ownership for profile data.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && request.resource.data.id == resource.data.id;
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(userId);
     }
 
     /**
      * @description Rules for the /users/{userId}/attendanceRecords/{attendanceRecordId} collection.
      * @path /users/{userId}/attendanceRecords/{attendanceRecordId}
-     * @allow (get) Authenticated user can read their own attendance record.
-     * @allow (create) Authenticated user can create their own attendance record.
-     * @deny (create) Unauthenticated user cannot create an attendance record.
-     * @deny (update) Authenticated user cannot update another user's attendance record.
-     * @deny (delete) Authenticated user cannot delete another user's attendance record.
-     * @principle Enforces user-based ownership.
+     * @allow (get) - Only the user themselves can read their own attendance records.
+     * @allow (create) - Only the user themselves can create their own attendance records.
+     * @deny (update) - Only the user themselves can update their own attendance records.
+     * @deny (delete) - Only the user themselves can delete their own attendance records.
+     * @principle Enforces user-ownership for attendance records.
      */
     match /users/{userId}/attendanceRecords/{attendanceRecordId} {
       allow get: if isOwner(userId);
       allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
       allow delete: if isExistingOwner(userId);
     }
   }

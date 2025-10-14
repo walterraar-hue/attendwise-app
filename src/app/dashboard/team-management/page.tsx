@@ -175,9 +175,10 @@ export default function TeamManagementPage() {
     const { data: companyData, isLoading: isCompanyLoading } = useDoc<Company>(companyDocRef);
 
     const usersQuery = useMemoFirebase(() => {
-        if (!companyId || !firestore) return null;
-        return query(collection(firestore, 'users'), where('companyId', '==', companyId));
-    }, [companyId, firestore]);
+        if (!firestore) return null;
+        // Reverted: Query all users. THIS IS INSECURE.
+        return collection(firestore, 'users');
+    }, [firestore]);
 
     const { data: companyUsers, isLoading: areUsersLoading } = useCollection<User>(usersQuery);
 
