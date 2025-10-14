@@ -23,6 +23,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import type { UserRole } from "@/lib/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 
 const memberSchema = z.object({
@@ -115,11 +122,9 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         name: values.name,
         role: 'Global Admin',
         status: 'active',
+        isRoleLocked: true, // Global Admins have their role locked by default
       });
       
-      const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
-      batch.set(adminRoleRef, { admin: true, role: 'Global Admin' });
-
       await batch.commit();
 
       toast({ title: "¡Éxito!", description: `Equipo creado correctamente. Ahora puedes iniciar sesión.`, });
@@ -152,11 +157,9 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     let userCredential;
 
     try {
-        // Step 1: Create the user in Auth to get a UID
         userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
-        // Step 2: With an authenticated user, validate company and slots
         const companyRef = doc(firestore, "companies", values.companyCode);
         const companySnap = await getDoc(companyRef);
 
@@ -169,7 +172,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         const roleLimit = companyData.roleLimits?.[userRoleToAssign] ?? 0;
         
         if (roleLimit === 0) {
-            toast({ title: "Error de Registro", description: `El rol '${userRoleToAssign}' no está disponible en el plan de esta compañía. Por favor, contacta a tu administrador.`, variant: "destructive" });
+            toast({ title: "Error de Registro", description: `El rol por defecto 'Miembro' no está disponible en el plan de esta compañía.`, variant: "destructive" });
             throw new Error("Role not available in plan");
         }
         
@@ -184,7 +187,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             }
         }
         
-        // Step 3: Write user document and update company slots
         const batch = writeBatch(firestore);
 
         const userDocRef = doc(firestore, "users", user.uid);
@@ -194,14 +196,17 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             companyId: values.companyCode,
             email: values.email,
             name: values.name,
-            role: userRoleToAssign,
+            role: userRoleToAssign, // Members are registered with this role by default
             status: 'active',
             createdAt: serverTimestamp(),
+            isRoleLocked: false, // The role is not locked, admin needs to assign it
         });
         
-        batch.update(companyRef, {
-            usedSlots: increment(1)
-        });
+        if (userRoleToAssign === 'Miembro') {
+            batch.update(companyRef, {
+                usedSlots: increment(1)
+            });
+        }
         
         await batch.commit();
         
@@ -212,7 +217,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         router.push('/dashboard');
 
     } catch (error: any) {
-        // If any step fails, delete the created Auth user to prevent orphans
         if (userCredential) {
             await deleteUser(userCredential.user).catch(delErr => {
               console.error("Cleanup Error: Failed to delete orphaned auth user.", delErr);
@@ -221,7 +225,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       
         if (error.code === 'auth/email-already-in-use') {
             toast({ title: "Error de Registro", description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.", variant: "destructive" });
-        } else if (!companyCodeError) { // Avoid showing double errors
+        } else if (!companyCodeError) {
             console.error("Member Registration Error:", error);
             if (error.message !== "Invalid company code" && error.message !== "Role not available in plan" && error.message !== "Role slots are full") {
               toast({ title: "Error de Registro", description: "No se pudo crear la cuenta. Por favor, inténtalo de nuevo.", variant: "destructive" });
@@ -318,5 +322,3 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
-
-    

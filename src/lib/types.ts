@@ -1,6 +1,7 @@
 
 
 
+
 export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager' | 'Miembro';
 
 export type UserStatus = 'active' | 'pending' | 'inactive';
@@ -14,6 +15,7 @@ export interface User {
   avatarUrl?: string;
   teamId?: string;
   companyId: string;
+  isRoleLocked?: boolean;
 }
 
 export interface Company {

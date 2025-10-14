@@ -21,7 +21,7 @@ import { MoreHorizontal, ShieldCheck, Trash2, UserCog } from "lucide-react";
 import { Button } from "../ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator } from "../ui/dropdown-menu";
 import { useFirestore } from "@/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
 const statusVariant: Record<UserStatus, "default" | "secondary" | "destructive"> = {
@@ -46,9 +46,16 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
     if (!firestore || !user.id || !company) return;
     if (user.role === newRole) return;
 
-    //--- Validation Logic ---
+    if (user.isRoleLocked) {
+        toast({
+            variant: "destructive",
+            title: "Rol Bloqueado",
+            description: `El rol de ${user.name} ya fue asignado y no puede cambiarse.`,
+        });
+        return;
+    }
+
     const roleLimit = company.roleLimits?.[newRole] ?? 0;
-    
     if (roleLimit === 0) {
         toast({
             variant: "destructive",
@@ -58,7 +65,7 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
         return;
     }
 
-    if (roleLimit !== -1) { // -1 means unlimited
+    if (roleLimit !== -1) {
         const currentRoleCount = users.filter(u => u.role === newRole).length;
         if (currentRoleCount >= roleLimit) {
             toast({
@@ -69,15 +76,17 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
             return;
         }
     }
-    // --- End Validation ---
-
+   
     try {
       const userDocRef = doc(firestore, 'users', user.id);
-      await updateDoc(userDocRef, { role: newRole });
-
+      await updateDoc(userDocRef, { 
+        role: newRole,
+        isRoleLocked: true // Lock the role after the first change
+      });
+      
       toast({
-        title: "Rol Actualizado",
-        description: `El rol de ${user.name} ha sido cambiado a ${newRole}.`,
+        title: "Rol Asignado Exitosamente",
+        description: `El rol de ${user.name} ha sido establecido como ${newRole} y ya no podrá ser modificado.`,
       });
 
     } catch (error) {
@@ -139,7 +148,7 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                      <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
+                      <DropdownMenuSubTrigger disabled={user.isRoleLocked}>
                         <UserCog className="mr-2 h-4 w-4" />
                         Cambiar Rol
                       </DropdownMenuSubTrigger>
