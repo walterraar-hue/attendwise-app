@@ -40,23 +40,31 @@ function DashboardHeader({ userRole, userProps, isLoading }: { userRole: string,
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b bg-primary text-primary-foreground">
-       <div className="flex h-full w-full items-center gap-4 px-4 sm:px-6">
-            <Button
-                size="icon"
-                variant="ghost"
-                className="md:hidden -ml-2 hover:bg-primary-foreground/20 hover:text-primary-foreground"
-                onClick={toggleSidebar}
-            >
-                <PanelLeft className="h-5 w-5" />
-                <span className="sr-only">Toggle Sidebar</span>
-            </Button>
-            <div className="hidden md:block">
-                <Logo logoTextClassName="text-primary-foreground" showIcon={true} />
+       <div className="flex h-full w-full items-center justify-between px-4 sm:px-6">
+            <div className="flex items-center gap-4">
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    className="md:hidden -ml-2 hover:bg-primary-foreground/20 hover:text-primary-foreground"
+                    onClick={toggleSidebar}
+                >
+                    <PanelLeft className="h-5 w-5" />
+                    <span className="sr-only">Toggle Sidebar</span>
+                </Button>
+                <div className="hidden md:block">
+                    <Logo logoTextClassName="text-primary-foreground" showIcon={true} showSubtitle={false}/>
+                </div>
             </div>
-            <div className="flex-1 flex justify-center">
+
+            <div className="flex-1 flex justify-center md:hidden">
+                 <Logo logoTextClassName="text-primary-foreground" showIcon={true} showSubtitle={false} />
+            </div>
+
+            <div className="hidden flex-1 md:flex justify-center">
                 <Breadcrumbs userRole={userRole} />
             </div>
-            <div className="ml-auto flex items-center gap-4">
+
+            <div className="flex items-center gap-4">
                 <UserNav user={userProps} />
             </div>
        </div>
