@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, getDoc, increment } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, getDoc, increment, collection, query, where, getDocs } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,12 +22,16 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { UserRole } from "@/lib/types";
+
 
 const memberSchema = z.object({
   name: z.string().min(2, "Por favor, introduce tu nombre completo."),
   email: z.string().email("Por favor, introduce un email válido."),
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
   companyCode: z.string().min(1, "El código de compañía es requerido."),
+  role: z.enum(['Miembro', 'Manager'], { required_error: "Debes seleccionar un rol." }),
 });
 
 const adminSchema = z.object({
@@ -58,7 +62,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   const form = useForm({
     resolver: zodResolver(isMemberFlow ? memberSchema : adminSchema),
     defaultValues: isMemberFlow
-      ? { name: "", email: "", password: "", companyCode: "" }
+      ? { name: "", email: "", password: "", companyCode: "", role: "Miembro" as UserRole }
       : { name: "", companyName: "", email: "", password: "" },
   });
 
@@ -147,11 +151,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
     let userCredential;
     try {
-        // Step 1: Create user in Auth FIRST.
-        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
-
-        // Step 2: Now that user is authenticated, validate company code and slots.
         const companyRef = doc(firestore, "companies", values.companyCode);
         const companySnap = await getDoc(companyRef);
 
@@ -160,15 +159,21 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         }
 
         const companyData = companySnap.data();
-        const memberLimit = companyData.roleLimits?.['Miembro'] ?? 0;
-        const managerLimit = companyData.roleLimits?.['Manager'] ?? 0;
-        const totalLimit = (memberLimit === -1 || managerLimit === -1) ? Infinity : (memberLimit + managerLimit);
+        const roleLimit = companyData.roleLimits?.[values.role] ?? 0;
 
-        if (totalLimit !== Infinity && companyData.usedSlots >= totalLimit) {
-            throw new Error("La compañía ha alcanzado su límite de usuarios.");
+        if (roleLimit !== -1) { // -1 means unlimited
+            const usersQuery = query(collection(firestore, 'users'), where('companyId', '==', values.companyCode), where('role', '==', values.role));
+            const usersSnap = await getDocs(usersQuery);
+            const currentRoleCount = usersSnap.size;
+
+            if (currentRoleCount >= roleLimit) {
+                throw new Error(`No hay cupos disponibles para el rol de ${values.role}. Por favor, contacta a tu administrador.`);
+            }
         }
+      
+        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
         
-        // Step 3: If validations pass, commit the new user doc and update company slots.
         const batch = writeBatch(firestore);
 
         const userDocRef = doc(firestore, "users", user.uid);
@@ -178,14 +183,17 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             companyId: values.companyCode,
             email: values.email,
             name: values.name,
-            role: 'Miembro',
-            status: 'active', // STATUS IS ACTIVE FROM THE START
+            role: values.role,
+            status: 'active',
             createdAt: serverTimestamp(),
         });
         
-        batch.update(companyRef, {
-            usedSlots: increment(1)
-        });
+        // Only increment general 'usedSlots' if the role is a billable slot.
+        if (values.role === 'Miembro' || values.role === 'Manager') {
+            batch.update(companyRef, {
+                usedSlots: increment(1)
+            });
+        }
         
         await batch.commit();
 
@@ -196,7 +204,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         router.push('/dashboard');
 
     } catch (error: any) {
-        // If any step fails after Auth user creation, delete the Auth user for cleanup.
         if (userCredential) {
             await deleteUser(userCredential.user).catch(delErr => {
               console.error("Cleanup Error: Failed to delete orphaned auth user.", delErr);
@@ -265,19 +272,42 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         />
         
         {isMemberFlow && (
-           <FormField
-            control={form.control}
-            name="companyCode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Código de la Compañía</FormLabel>
-                <FormControl>
-                  <Input placeholder="Pega el código que te dio tu administrador" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <>
+            <FormField
+              control={form.control}
+              name="companyCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Código de la Compañía</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Pega el código que te dio tu administrador" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rol en el Equipo</FormLabel>
+                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona el rol que te asignaron" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Miembro">Miembro del Equipo</SelectItem>
+                      <SelectItem value="Manager">Manager</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
         )}
 
         <FormField
