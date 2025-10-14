@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState } from "react";
@@ -84,7 +83,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       
       const newCompanyRef = doc(collection(firestore, 'companies')); 
 
-      const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Miembro': 0 };
+      const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Miembro': 0, 'Manager': 0 };
 
       if (plan === 'basic') {
           roleLimits['Global Admin'] = 1;
@@ -153,38 +152,34 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
     let userCredential;
     try {
-        // Step 1: Create the auth user first to get a UID
         userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
-        // Step 2: Now that we are authenticated, validate the company and slots
         const companyRef = doc(firestore, "companies", values.companyCode);
         const companySnap = await getDoc(companyRef);
 
         if (!companySnap.exists()) {
             setCompanyCodeError("El código de compañía no es válido. Por favor, verifica e inténtalo de nuevo.");
-            // We must throw to trigger the catch block and delete the orphan user
             throw new Error("Invalid company code"); 
         }
 
         const companyData = companySnap.data();
-        const roleLimit = companyData.roleLimits?.[values.role];
-
+        const roleLimit = companyData.roleLimits?.[values.role] ?? 0;
+        
         if (roleLimit === 0) {
             throw new Error(`El rol '${values.role}' no está disponible en el plan de esta compañía. Por favor, contacta a tu administrador.`);
         }
         
-        if (roleLimit !== undefined) {
+        if (roleLimit !== -1) {
             const usersQuery = query(collection(firestore, 'users'), where('companyId', '==', values.companyCode), where('role', '==', values.role));
             const usersSnap = await getDocs(usersQuery);
             const currentRoleCount = usersSnap.size;
 
-            if (roleLimit !== -1 && currentRoleCount >= roleLimit) {
+            if (currentRoleCount >= roleLimit) {
                 throw new Error(`No hay cupos disponibles para el rol de ${values.role}. Por favor, contacta a tu administrador.`);
             }
         }
         
-        // Step 3: If validation passes, commit the user document and update company
         const batch = writeBatch(firestore);
 
         const userDocRef = doc(firestore, "users", user.uid);
@@ -198,6 +193,12 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             status: 'active',
             createdAt: serverTimestamp(),
         });
+
+        // If the role is an admin-level role, add them to the admin roles collection.
+        if (values.role === 'CEO' || values.role === 'Operations Manager') {
+            const adminRoleRef = doc(firestore, 'roles_admin', user.uid);
+            batch.set(adminRoleRef, { admin: true, role: values.role });
+        }
         
         batch.update(companyRef, {
             usedSlots: increment(1)
@@ -212,22 +213,18 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         router.push('/dashboard');
 
     } catch (error: any) {
-        // IMPORTANT: Clean up the created auth user if any subsequent step failed
         if (userCredential) {
             await deleteUser(userCredential.user).catch(delErr => {
-              // This is a best-effort cleanup. Log if it fails.
               console.error("Cleanup Error: Failed to delete orphaned auth user.", delErr);
             });
         }
       
-        // Handle specific, user-facing errors
         if (error.message === "Invalid company code") {
-          // This case is already handled by setCompanyCodeError, so we don't need a toast.
+          // This state is handled directly in the UI, no toast needed.
         } else if (error.code === 'auth/email-already-in-use') {
             toast({ title: "Error de Registro", description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.", variant: "destructive" });
         } else {
             console.error("Member Registration Error:", error);
-            // Show other validation errors (like no slots) to the user
             toast({ title: "Error de Registro", description: error.message || "No se pudo crear la cuenta. Por favor, inténtalo de nuevo.", variant: "destructive" });
         }
     } finally {
@@ -345,6 +342,3 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
-
-    
-    
