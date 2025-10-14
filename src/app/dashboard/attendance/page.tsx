@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Header from "@/components/dashboard/header";
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where, doc, getDocs } from 'firebase/firestore';
+import { collection, query, where, doc, getDocs, orderBy } from 'firebase/firestore';
 import type { AttendanceRecord, WorkCenter, User as AppUser } from '@/lib/types';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -48,7 +48,7 @@ export default function AttendancePage() {
     if (!companyId || !firestore) return null;
     return query(collection(firestore, 'users'), where('companyId', '==', companyId));
   }, [companyId, firestore]);
-  const { data: companyUsers, isLoading: areUsersLoading } = useCollection<AppUser>(companyUsersQuery);
+  const { data: companyUsers, isLoading: areUsersLoading, error: usersError } = useCollection<AppUser>(companyUsersQuery);
   const userMap = useMemo(() => {
       if (!companyUsers) return new Map();
       return new Map(companyUsers.map(u => [u.id, { name: u.name, email: u.email }]));
@@ -67,14 +67,18 @@ export default function AttendancePage() {
       
       for (const member of companyUsers) {
         const attendanceRef = collection(firestore, `users/${member.id}/attendanceRecords`);
-        const attendanceSnap = await getDocs(attendanceRef);
+        const attendanceSnap = await getDocs(query(attendanceRef, orderBy('checkInTimestamp', 'desc')));
         attendanceSnap.forEach(doc => {
-          records.push({ 
-            ...(doc.data() as AttendanceRecord),
-            id: doc.id,
-            userName: member.name,
-            userEmail: member.email,
-          });
+          const docData = doc.data() as AttendanceRecord;
+           // Ensure checkInTimestamp is a Firestore Timestamp before calling toDate()
+          if (docData.checkInTimestamp && typeof docData.checkInTimestamp.toDate === 'function') {
+              records.push({ 
+                ...docData,
+                id: doc.id,
+                userName: member.name,
+                userEmail: member.email,
+              });
+          }
         });
       }
       
@@ -118,6 +122,21 @@ export default function AttendancePage() {
             </div>
         </div>
     );
+  }
+  
+  if (usersError) {
+     return (
+        <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+            <div className="max-w-4xl mx-auto">
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                        Error de permisos: No se pueden cargar los miembros del equipo. Por favor, contacta al administrador para ajustar las reglas de seguridad de Firestore.
+                    </AlertDescription>
+                </Alert>
+            </div>
+        </div>
+    )
   }
 
   return (
