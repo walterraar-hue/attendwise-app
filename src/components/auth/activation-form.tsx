@@ -163,9 +163,15 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         }
 
         const companyData = companySnap.data();
-        const roleLimit = companyData.roleLimits?.[values.role] ?? 0;
+        
+        // 2a. Check if the role is even available in the plan
+        const roleLimit = companyData.roleLimits?.[values.role];
 
-        // Check against users collection for the chosen role
+        if (roleLimit === undefined || roleLimit === 0) {
+            throw new Error(`El rol seleccionado no está disponible en el plan de esta compañía. Por favor, contacta a tu administrador.`);
+        }
+
+        // 2b. If the role is available, check if there are open slots
         const usersQuery = query(collection(firestore, 'users'), where('companyId', '==', values.companyCode), where('role', '==', values.role));
         const usersSnap = await getDocs(usersQuery);
         const currentRoleCount = usersSnap.size;
@@ -189,9 +195,12 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             createdAt: serverTimestamp(),
         });
         
-        batch.update(companyRef, {
-            usedSlots: increment(1)
-        });
+        // Only increment usedSlots for member-like roles
+        if (values.role === 'Miembro' || values.role === 'Manager') {
+             batch.update(companyRef, {
+                usedSlots: increment(1)
+            });
+        }
         
         await batch.commit();
 
@@ -328,5 +337,3 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
-
-    
