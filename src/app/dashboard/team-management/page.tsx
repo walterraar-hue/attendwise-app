@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import Header from "@/components/dashboard/header";
@@ -71,7 +72,7 @@ function PlanUsageCard({ company, users }: { company: any; users: User[] }) {
         { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" />, displayName: 'CEO' },
         { name: 'Operations Manager', icon: <Star className="size-5 text-blue-500" />, displayName: 'Admin de Operaciones' },
         { name: 'Manager', icon: <UserCog className="size-5 text-indigo-500" />, displayName: 'Manager' },
-        { name: 'Employee', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
+        { name: 'Miembro', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
     ];
 
     const { roleDetails, totalMemberLimit, usedSlots } = useMemo(() => {
@@ -98,7 +99,7 @@ function PlanUsageCard({ company, users }: { company: any; users: User[] }) {
             return acc + role.limit;
         }, 0);
 
-        const currentUsedSlots = users.filter(u => u.role === 'Employee' || u.role === 'Manager').length;
+        const currentUsedSlots = users.filter(u => u.role === 'Miembro' || u.role === 'Manager').length;
         
         return { roleDetails: roles, totalMemberLimit: totalLimit, usedSlots: currentUsedSlots };
     }, [company, users]);
@@ -165,7 +166,7 @@ export default function TeamManagementPage() {
         if (!user || !firestore) return null;
         return doc(firestore, 'users', user.uid);
     }, [user, firestore]);
-    const { data: userData } = useDoc(userDocRef);
+    const { data: userData, isLoading: isUserLoading } = useDoc(userDocRef);
 
     const companyId = userData?.companyId;
 
@@ -173,16 +174,16 @@ export default function TeamManagementPage() {
         if (!companyId || !firestore) return null;
         return doc(firestore, 'companies', companyId);
     }, [companyId, firestore]);
-    const { data: companyData, isLoading: companyLoading } = useDoc(companyDocRef);
+    const { data: companyData, isLoading: isCompanyLoading } = useDoc(companyDocRef);
 
     const usersQuery = useMemoFirebase(() => {
         if (!companyId || !firestore) return null;
         return query(collection(firestore, 'users'), where('companyId', '==', companyId));
     }, [companyId, firestore]);
 
-    const { data: companyUsers, isLoading: usersLoading } = useCollection<User>(usersQuery);
+    const { data: companyUsers, isLoading: areUsersLoading } = useCollection<User>(usersQuery);
 
-    const isLoading = companyLoading || usersLoading;
+    const isLoading = isUserLoading || isCompanyLoading || areUsersLoading;
 
 
   return (
@@ -192,44 +193,47 @@ export default function TeamManagementPage() {
         {companyData && companyUsers && <InviteMemberDialog company={companyData as any} users={companyUsers} />}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-8">
-        {isLoading || !companyData || !companyUsers ? (
-             <Card className="lg:col-span-2">
-                <CardHeader>
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                        <div className="flex justify-between">
-                            <Skeleton className="h-4 w-1/3" />
-                            <Skeleton className="h-5 w-1/4" />
-                        </div>
-                        <Skeleton className="h-4 w-full" />
-                    </div>
-                    <Separator />
-                    <div className="space-y-4">
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                        <Skeleton className="h-8 w-full" />
-                    </div>
-                </CardContent>
+        <div className="lg:col-span-2 grid grid-cols-1 gap-8">
+          {isLoading ? (
+            <Card>
+              <CardHeader>
+                  <Skeleton className="h-7 w-3/4" />
+                  <Skeleton className="h-4 w-1/2 mt-1" />
+              </CardHeader>
+              <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                      <div className="flex justify-between">
+                          <Skeleton className="h-5 w-1/3" />
+                          <Skeleton className="h-6 w-1/4" />
+                      </div>
+                      <Skeleton className="h-4 w-full" />
+                  </div>
+                  <Separator />
+                  <div className="space-y-4">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                  </div>
+              </CardContent>
             </Card>
-        ) : (
-            <div className="lg:col-span-2 grid grid-cols-1 gap-8">
-              <PlanUsageCard company={companyData} users={companyUsers || []} />
-            </div>
-        )}
-         <div className="lg:col-span-1">
+          ) : (
+            <PlanUsageCard company={companyData} users={companyUsers || []} />
+          )}
+        </div>
+        <div className="lg:col-span-1">
             {isLoading || !companyId ? <Skeleton className="h-48 w-full" /> : <InvitationCode companyId={companyId} />}
-         </div>
+        </div>
       </div>
       
       <Separator />
 
       <div className="space-y-4 mt-8">
         <Header title="Miembros del Equipo" />
-        {isLoading || !companyUsers ? (
-            <p>Cargando miembros...</p>
+        {isLoading ? (
+            <div className="rounded-md border bg-card p-6">
+                <Skeleton className="h-4 w-full mb-4" />
+                <Skeleton className="h-4 w-full mb-4" />
+                <Skeleton className="h-4 w-full" />
+            </div>
         ) : (
             <MembersTable data={companyUsers || []} />
         )}
