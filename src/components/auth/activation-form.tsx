@@ -10,10 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, collection, query, where, getDocs, updateDoc, increment } from "firebase/firestore";
-import { errorEmitter } from "@/firebase/error-emitter";
-import { FirestorePermissionError } from "@/firebase/errors";
-
+import { doc, writeBatch, serverTimestamp, collection, getDoc, query, where, getDocs, increment } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,13 +23,24 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { UserRole } from "@/lib/types";
+
 
 const memberSchema = z.object({
   name: z.string().min(2, "Please enter your full name."),
   email: z.string().email("Please enter a valid email address."),
   companyCode: z.string().min(1, "Company code is required."),
   password: z.string().min(8, "Password must be at least 8 characters long."),
+  role: z.string().min(1, "Role is required") as z.ZodType<UserRole>,
 });
+
 
 const adminSchema = z.object({
   name: z.string().min(2, "Please enter your full name."),
@@ -49,6 +57,13 @@ function SubmitButton({ mode, isLoading }: { mode: "admin" | "member", isLoading
   );
 }
 
+const ALL_ROLES_MAP = new Map<UserRole, string>([
+    ['CEO', 'CEO'],
+    ['Operations Manager', 'Admin de Operaciones'],
+    ['Manager', 'Manager'],
+    ['Miembro', 'Miembro'],
+]);
+
 export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?: string }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -61,7 +76,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   const form = useForm({
     resolver: zodResolver(isMemberFlow ? memberSchema : adminSchema),
     defaultValues: isMemberFlow
-      ? { name: "", email: "", companyCode: "", password: "" }
+      ? { name: "", email: "", companyCode: "", password: "", role: "Miembro" }
       : { name: "", email: "", password: "" },
   });
 
@@ -146,59 +161,65 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     }
 
     try {
-        const usersRef = collection(firestore, "users");
-        const q = query(
-            usersRef, 
-            where("email", "==", values.email), 
-            where("companyId", "==", values.companyCode),
-            where("status", "==", "active") 
-        );
+        // 1. Validate Company Code and check for available slots
+        const companyRef = doc(firestore, "companies", values.companyCode);
+        const companySnap = await getDoc(companyRef);
 
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            toast({
-                title: "Invitación no encontrada",
-                description: "No se encontró una invitación para este email y código de empresa. Por favor, verifica los datos o contacta a tu administrador.",
-                variant: "destructive",
-            });
+        if (!companySnap.exists()) {
+            toast({ variant: 'destructive', title: 'Error', description: 'El código de la empresa no es válido.' });
             setIsLoading(false);
             return;
         }
-
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
-
-        if (userData.id) {
-             toast({
-                title: "Cuenta ya activada",
-                description: "Esta invitación ya ha sido utilizada. Por favor, inicia sesión.",
-                variant: "destructive",
-            });
-            setIsLoading(false);
-            return;
-        }
+        const companyData = companySnap.data();
+        const roleLimits = companyData.roleLimits || {};
+        const roleLimit = roleLimits[values.role] ?? 0;
         
+        const usersInCompanyQuery = query(collection(firestore, "users"), where("companyId", "==", values.companyCode), where("role", "==", values.role));
+        const usersInCompanySnap = await getDocs(usersInCompanyQuery);
+        const usersInRole = usersInCompanySnap.size;
+
+        if (roleLimit !== -1 && usersInRole >= roleLimit) {
+            toast({ variant: 'destructive', title: 'Límite de Rol Alcanzado', description: `No hay más cupos disponibles para el rol '${values.role}'.` });
+            setIsLoading(false);
+            return;
+        }
+
+        // 2. Create Firebase Auth user
         const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
         const newUser = userCredential.user;
-
-        await updateDoc(doc(firestore, "users", userDoc.id), {
-            id: newUser.uid,
-            name: values.name
-        });
         
+        // 3. Create user document and update company in a batch
+        const batch = writeBatch(firestore);
+
+        const newUserRef = doc(firestore, "users", newUser.uid);
+        batch.set(newUserRef, {
+            id: newUser.uid,
+            companyId: values.companyCode,
+            name: values.name,
+            email: values.email,
+            role: values.role,
+            status: "active"
+        });
+
+        batch.update(companyRef, {
+            usedSlots: increment(1)
+        });
+
+        await batch.commit();
+
         toast({
             title: "¡Cuenta Activada!",
-            description: "Tu cuenta ha sido activada correctamente. Ahora puedes iniciar sesión.",
+            description: "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
         });
         router.push("/login");
 
     } catch (error: any) {
         let description = "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.";
         if (error.code === 'auth/email-already-in-use') {
-            description = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
-        } else if (error.message) {
-            description = error.message;
+            description = "Este correo electrónico ya está registrado en la plataforma. Por favor, inicia sesión.";
+        } else {
+            console.error("Activation Error:", error);
+            description = error.message || description;
         }
         toast({ title: "Error de Activación", description, variant: "destructive" });
     } finally {
@@ -240,19 +261,43 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           )}
         />
         {isMemberFlow && (
-          <FormField
-            control={form.control}
-            name="companyCode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Código de la Empresa</FormLabel>
-                <FormControl>
-                  <Input placeholder="El código de tu empresa" {...field} className="font-code"/>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <>
+            <FormField
+              control={form.control}
+              name="companyCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Código de la Empresa</FormLabel>
+                  <FormControl>
+                    <Input placeholder="El código de tu empresa" {...field} className="font-code"/>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Rol</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona tu rol" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Array.from(ALL_ROLES_MAP.entries()).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
         )}
         <FormField
           control={form.control}

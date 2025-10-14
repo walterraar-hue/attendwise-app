@@ -62,7 +62,10 @@ export default function LoginPage() {
       let description = "Email o contraseña incorrectos.";
       if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         description = "El email o la contraseña no son correctos. Por favor, inténtalo de nuevo.";
+      } else if (error.code === 'auth/invalid-email') {
+        description = "El formato del email no es válido.";
       }
+
 
       toast({
         variant: "destructive",

@@ -19,7 +19,7 @@ export default function RegisterMemberPage() {
           <CardHeader className="items-center text-center">
             <Logo />
             <CardTitle className="font-headline text-2xl">Unirme a un Equipo</CardTitle>
-            <CardDescription>Usa un código de invitación para unirte al equipo.</CardDescription>
+            <CardDescription>Usa un código de invitación y selecciona tu rol para unirte al equipo.</CardDescription>
           </CardHeader>
           <CardContent>
             <ActivationForm mode="member" />
