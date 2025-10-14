@@ -12,6 +12,7 @@ import Logo from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { PanelLeft } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
+import Breadcrumbs from "@/components/dashboard/breadcrumbs";
 
 function DashboardHeader() {
   const { user } = useUser();
@@ -42,7 +43,12 @@ function DashboardHeader() {
                 <PanelLeft className="h-5 w-5" />
                 <span className="sr-only">Toggle Sidebar</span>
             </Button>
-            <Logo logoTextClassName="text-primary-foreground" />
+            <div className="hidden md:block">
+                <Logo logoTextClassName="text-primary-foreground" />
+            </div>
+            <div className="flex-1 flex justify-center">
+                <Breadcrumbs />
+            </div>
             <div className="ml-auto flex items-center gap-4">
                 <UserNav user={userProps} />
             </div>

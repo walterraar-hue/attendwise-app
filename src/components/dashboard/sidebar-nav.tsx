@@ -24,7 +24,7 @@ import type { User as AppUser } from '@/lib/types';
 import { doc } from 'firebase/firestore';
 import { useDoc } from '@/firebase/firestore/use-doc';
 
-const navItemsByRole = {
+export const navItemsByRole = {
     'Global Admin': [
       { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
       { href: '/dashboard/register-attendance', icon: ClipboardCheck, label: 'Registrar Asistencia' },
@@ -74,7 +74,12 @@ export function SidebarNav() {
     router.push('/login');
   };
 
-  const isActive = (path: string) => pathname === path;
+  const isActive = (path: string) => {
+    if (path === '/dashboard') {
+        return pathname === path;
+    }
+    return pathname.startsWith(path);
+  }
   
   return (
     <>
