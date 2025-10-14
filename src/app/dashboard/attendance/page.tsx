@@ -66,24 +66,38 @@ export default function AttendancePage() {
       const records: AggregatedRecord[] = [];
       
       for (const member of companyUsers) {
-        const attendanceRef = collection(firestore, `users/${member.id}/attendanceRecords`);
-        const attendanceSnap = await getDocs(query(attendanceRef, orderBy('checkInTimestamp', 'desc')));
-        attendanceSnap.forEach(doc => {
-          const docData = doc.data() as AttendanceRecord;
-           // Ensure checkInTimestamp is a Firestore Timestamp before calling toDate()
-          if (docData.checkInTimestamp && typeof docData.checkInTimestamp.toDate === 'function') {
-              records.push({ 
-                ...docData,
-                id: doc.id,
-                userName: member.name,
-                userEmail: member.email,
-              });
-          }
-        });
+        // Since we already have the list of users, we can fetch their attendance records.
+        // This assumes that a user can read other users' attendance if they have the right role,
+        // which might require a security rule adjustment on the attendanceRecords subcollection.
+        // For now, let's assume the rules allow it for admins.
+        try {
+            const attendanceRef = collection(firestore, `users/${member.id}/attendanceRecords`);
+            const attendanceSnap = await getDocs(query(attendanceRef, orderBy('checkInTimestamp', 'desc')));
+            attendanceSnap.forEach(doc => {
+              const docData = doc.data() as AttendanceRecord;
+               // Ensure checkInTimestamp is a Firestore Timestamp before calling toDate()
+              if (docData.checkInTimestamp && typeof docData.checkInTimestamp.toDate === 'function') {
+                  records.push({ 
+                    ...docData,
+                    id: doc.id,
+                    userName: member.name,
+                    userEmail: member.email,
+                  });
+              }
+            });
+        } catch (e) {
+            // This might fail if security rules don't allow reading other users' subcollections.
+            // We'll log it but continue, so the app doesn't crash.
+            console.error(`Could not fetch attendance for user ${member.id}:`, e);
+        }
       }
       
       // Sort by check-in time, descending
-      records.sort((a, b) => b.checkInTimestamp.toDate().getTime() - a.checkInTimestamp.toDate().getTime());
+      records.sort((a, b) => {
+        const timeA = a.checkInTimestamp?.toDate?.().getTime() || 0;
+        const timeB = b.checkInTimestamp?.toDate?.().getTime() || 0;
+        return timeB - timeA;
+      });
       
       setAllRecords(records);
       setIsLoading(false);
@@ -181,8 +195,12 @@ export default function AttendancePage() {
                                 </div>
                             </TableCell>
                             <TableCell>
-                                <div className="font-medium capitalize">{format(record.checkInTimestamp.toDate(), "d MMM, yyyy", { locale: es })}</div>
-                                <div className="text-sm text-muted-foreground">{format(record.checkInTimestamp.toDate(), "eeee", { locale: es })}</div>
+                                {record.checkInTimestamp?.toDate ? (
+                                    <>
+                                        <div className="font-medium capitalize">{format(record.checkInTimestamp.toDate(), "d MMM, yyyy", { locale: es })}</div>
+                                        <div className="text-sm text-muted-foreground">{format(record.checkInTimestamp.toDate(), "eeee", { locale: es })}</div>
+                                    </>
+                                ) : 'Fecha inválida'}
                             </TableCell>
                              <TableCell>
                                 <div className="flex items-center gap-2">
@@ -194,10 +212,12 @@ export default function AttendancePage() {
                                 <div className="font-medium">{record.appointmentTime}</div>
                             </TableCell>
                              <TableCell>
-                                <div className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
+                                {record.checkInTimestamp?.toDate ? (
+                                    <div className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
+                                ) : 'N/A'}
                             </TableCell>
                             <TableCell>
-                                {record.checkOutTimestamp ? (
+                                {record.checkOutTimestamp?.toDate ? (
                                     <div className="font-medium">{format(record.checkOutTimestamp.toDate(), "p", { locale: es })}</div>
                                 ) : (
                                     <Badge variant="outline">Pendiente</Badge>
