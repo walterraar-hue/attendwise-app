@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, collection, getDoc, query, where, getDocs, increment } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { UserRole } from "@/lib/types";
+import { validateAndCreateUser } from "@/lib/actions";
 
 
 const memberSchema = z.object({
@@ -94,7 +95,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
       const batch = writeBatch(firestore);
       
-      const newCompanyRef = doc(collection(firestore, 'companies'));
+      const newCompanyRef = doc(firestore, 'companies', doc(firestore, 'companies').id);
       const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Miembro': 0 };
 
       if (plan === 'basic') {
@@ -143,7 +144,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
        let description = "Ocurrió un error inesperado.";
         if (error.code === 'auth/email-already-in-use') {
             description = "Este correo electrónico ya está registrado. Por favor, utiliza otro.";
-        } else if (error.message) {
+        } else {
+            console.error("Admin registration error:", error);
             description = error.message;
         }
         toast({ title: "Error al crear equipo", description, variant: "destructive" });
@@ -154,77 +156,20 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
-    if (!firestore || !auth) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Servicios de Firebase no disponibles.' });
-        setIsLoading(false);
-        return;
+    
+    const result = await validateAndCreateUser(values);
+
+    if (result.success) {
+      toast({
+          title: "¡Cuenta Activada!",
+          description: "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
+      });
+      router.push("/login");
+    } else {
+      toast({ title: "Error de Activación", description: result.error, variant: "destructive" });
     }
 
-    try {
-        // 1. Validate Company Code and check for available slots
-        const companyRef = doc(firestore, "companies", values.companyCode);
-        const companySnap = await getDoc(companyRef);
-
-        if (!companySnap.exists()) {
-            toast({ variant: 'destructive', title: 'Error', description: 'El código de la empresa no es válido.' });
-            setIsLoading(false);
-            return;
-        }
-        const companyData = companySnap.data();
-        const roleLimits = companyData.roleLimits || {};
-        const roleLimit = roleLimits[values.role] ?? 0;
-        
-        const usersInCompanyQuery = query(collection(firestore, "users"), where("companyId", "==", values.companyCode), where("role", "==", values.role));
-        const usersInCompanySnap = await getDocs(usersInCompanyQuery);
-        const usersInRole = usersInCompanySnap.size;
-
-        if (roleLimit !== -1 && usersInRole >= roleLimit) {
-            toast({ variant: 'destructive', title: 'Límite de Rol Alcanzado', description: `No hay más cupos disponibles para el rol '${values.role}'.` });
-            setIsLoading(false);
-            return;
-        }
-
-        // 2. Create Firebase Auth user
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const newUser = userCredential.user;
-        
-        // 3. Create user document and update company in a batch
-        const batch = writeBatch(firestore);
-
-        const newUserRef = doc(firestore, "users", newUser.uid);
-        batch.set(newUserRef, {
-            id: newUser.uid,
-            companyId: values.companyCode,
-            name: values.name,
-            email: values.email,
-            role: values.role,
-            status: "active"
-        });
-
-        batch.update(companyRef, {
-            usedSlots: increment(1)
-        });
-
-        await batch.commit();
-
-        toast({
-            title: "¡Cuenta Activada!",
-            description: "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
-        });
-        router.push("/login");
-
-    } catch (error: any) {
-        let description = "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.";
-        if (error.code === 'auth/email-already-in-use') {
-            description = "Este correo electrónico ya está registrado en la plataforma. Por favor, inicia sesión.";
-        } else {
-            console.error("Activation Error:", error);
-            description = error.message || description;
-        }
-        toast({ title: "Error de Activación", description, variant: "destructive" });
-    } finally {
-        setIsLoading(false);
-    }
+    setIsLoading(false);
   };
 
 
@@ -317,3 +262,4 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
+
