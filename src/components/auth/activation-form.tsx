@@ -152,22 +152,22 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
     let userCredential;
     try {
-        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
-
         const companyRef = doc(firestore, "companies", values.companyCode);
         const companySnap = await getDoc(companyRef);
 
         if (!companySnap.exists()) {
             setCompanyCodeError("El código de compañía no es válido. Por favor, verifica e inténtalo de nuevo.");
-            throw new Error("Invalid company code"); 
+            setIsLoading(false);
+            return;
         }
 
         const companyData = companySnap.data();
         const roleLimit = companyData.roleLimits?.[values.role] ?? 0;
         
         if (roleLimit === 0) {
-            throw new Error(`El rol '${values.role}' no está disponible en el plan de esta compañía. Por favor, contacta a tu administrador.`);
+            toast({ title: "Error de Registro", description: `El rol '${values.role}' no está disponible en el plan de esta compañía. Por favor, contacta a tu administrador.`, variant: "destructive" });
+            setIsLoading(false);
+            return;
         }
         
         if (roleLimit !== -1) {
@@ -176,9 +176,14 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             const currentRoleCount = usersSnap.size;
 
             if (currentRoleCount >= roleLimit) {
-                throw new Error(`No hay cupos disponibles para el rol de ${values.role}. Por favor, contacta a tu administrador.`);
+                toast({ title: "Error de Registro", description: `No hay cupos disponibles para el rol de ${values.role}. Por favor, contacta a tu administrador.`, variant: "destructive" });
+                setIsLoading(false);
+                return;
             }
         }
+        
+        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
         
         const batch = writeBatch(firestore);
 
@@ -219,13 +224,14 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             });
         }
       
-        if (error.message === "Invalid company code") {
-          // This state is handled directly in the UI, no toast needed.
-        } else if (error.code === 'auth/email-already-in-use') {
+        if (error.code === 'auth/email-already-in-use') {
             toast({ title: "Error de Registro", description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.", variant: "destructive" });
         } else {
             console.error("Member Registration Error:", error);
-            toast({ title: "Error de Registro", description: error.message || "No se pudo crear la cuenta. Por favor, inténtalo de nuevo.", variant: "destructive" });
+            // Don't show a toast if company code error is already shown
+            if (!companyCodeError) {
+              toast({ title: "Error de Registro", description: error.message || "No se pudo crear la cuenta. Por favor, inténtalo de nuevo.", variant: "destructive" });
+            }
         }
     } finally {
         setIsLoading(false);
