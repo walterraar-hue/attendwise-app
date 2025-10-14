@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -48,13 +49,12 @@ export default function LoginPage() {
       
       toast({
         title: "Inicio de Sesión Exitoso",
-        description: "Bienvenido de nuevo.",
+        description: "Bienvenido de nuevo a tu dashboard.",
       });
 
       router.push('/dashboard');
 
-    } catch (error: any)
-      {
+    } catch (error: any) {
       console.error("Login error:", error);
       
       let description = "Email o contraseña incorrectos.";
@@ -63,7 +63,6 @@ export default function LoginPage() {
       } else if (error.code === 'auth/invalid-email') {
         description = "El formato del email no es válido.";
       }
-
 
       toast({
         variant: "destructive",

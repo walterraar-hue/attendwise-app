@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -14,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Copy, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
 
 // This component is now simplified. It no longer invites users directly.
 // It only serves to display the company's invitation code.
@@ -42,7 +42,7 @@ export function InviteMemberDialog({ company }: { company: { id: string };}) {
         <DialogHeader>
           <DialogTitle>Comparte el Código de Invitación</DialogTitle>
           <DialogDescription>
-            Copia y comparte este código con los nuevos miembros para que puedan unirse a tu equipo.
+            Copia y comparte este código con los nuevos miembros para que puedan unirse a tu equipo usando la opción "Unirme a un Equipo" en la página de inicio.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4">

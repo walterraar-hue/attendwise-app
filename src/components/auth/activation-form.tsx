@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -7,7 +8,7 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
 import { doc, writeBatch, serverTimestamp, getDoc, increment } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
       const batch = writeBatch(firestore);
       
-      const newCompanyRef = doc(firestore, 'companies', user.uid); // Use user's UID for company ID for simplicity
+      const newCompanyRef = doc(firestore, 'companies', user.uid); 
 
       const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Miembro': 0 };
 
@@ -137,74 +138,81 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   };
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
-      setIsLoading(true);
-      if (!firestore || !auth) {
-          toast({ title: "Error", description: "Servicios de Firebase no disponibles.", variant: "destructive" });
-          setIsLoading(false);
-          return;
-      }
+    setIsLoading(true);
+    if (!firestore || !auth) {
+        toast({ title: "Error", description: "Servicios de Firebase no disponibles.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+    }
 
-      try {
-          // Invert flow: First, create the Auth user.
-          const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-          const user = userCredential.user;
+    let userCredential;
+    try {
+        // Step 1: Create user in Auth FIRST.
+        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
 
-          // Now that the user is authenticated, validate company and slots.
-          const companyRef = doc(firestore, "companies", values.companyCode);
-          const companySnap = await getDoc(companyRef);
+        // Step 2: Now that user is authenticated, validate company code and slots.
+        const companyRef = doc(firestore, "companies", values.companyCode);
+        const companySnap = await getDoc(companyRef);
 
-          if (!companySnap.exists()) {
-              throw new Error("El código de compañía no es válido.");
-          }
+        if (!companySnap.exists()) {
+            throw new Error("El código de compañía no es válido.");
+        }
 
-          const companyData = companySnap.data();
-          const memberLimit = companyData.roleLimits?.['Miembro'] ?? 0;
-          const managerLimit = companyData.roleLimits?.['Manager'] ?? 0;
-          const totalLimit = (memberLimit === -1 || managerLimit === -1) ? Infinity : (memberLimit + managerLimit);
+        const companyData = companySnap.data();
+        const memberLimit = companyData.roleLimits?.['Miembro'] ?? 0;
+        const managerLimit = companyData.roleLimits?.['Manager'] ?? 0;
+        const totalLimit = (memberLimit === -1 || managerLimit === -1) ? Infinity : (memberLimit + managerLimit);
 
-          if (totalLimit !== Infinity && companyData.usedSlots >= totalLimit) {
-              throw new Error("La compañía ha alcanzado su límite de usuarios.");
-          }
-          
-          // If all validations pass, commit the user document and update company slots.
-          const batch = writeBatch(firestore);
+        if (totalLimit !== Infinity && companyData.usedSlots >= totalLimit) {
+            throw new Error("La compañía ha alcanzado su límite de usuarios.");
+        }
+        
+        // Step 3: If validations pass, commit the new user doc and update company slots.
+        const batch = writeBatch(firestore);
 
-          const userDocRef = doc(firestore, "users", user.uid);
-          batch.set(userDocRef, {
-              id: user.uid,
-              uid: user.uid,
-              companyId: values.companyCode,
-              email: values.email,
-              name: values.name,
-              role: 'Miembro',
-              status: 'active', // STATUS IS ACTIVE FROM THE START
-              createdAt: serverTimestamp(),
-          });
-          
-          batch.update(companyRef, {
-              usedSlots: increment(1)
-          });
-          
-          await batch.commit();
+        const userDocRef = doc(firestore, "users", user.uid);
+        batch.set(userDocRef, {
+            id: user.uid,
+            uid: user.uid,
+            companyId: values.companyCode,
+            email: values.email,
+            name: values.name,
+            role: 'Miembro',
+            status: 'active', // STATUS IS ACTIVE FROM THE START
+            createdAt: serverTimestamp(),
+        });
+        
+        batch.update(companyRef, {
+            usedSlots: increment(1)
+        });
+        
+        await batch.commit();
 
-          toast({
-              title: "¡Registro Completo!",
-              description: "Tu cuenta ha sido creada y activada. ¡Bienvenido!",
-          });
-          router.push('/dashboard');
+        toast({
+            title: "¡Registro Completo!",
+            description: "Tu cuenta ha sido creada y activada. ¡Bienvenido a tu dashboard!",
+        });
+        router.push('/dashboard');
 
-      } catch (error: any) {
-          let errorMessage = "No se pudo crear la cuenta. " + error.message;
-          if (error.code === 'auth/email-already-in-use') {
-              errorMessage = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
-          }
-          console.error("Member Registration Error:", error);
-          toast({ title: "Error de Registro", description: errorMessage, variant: "destructive" });
-      } finally {
-          setIsLoading(false);
-      }
+    } catch (error: any) {
+        // If any step fails after Auth user creation, delete the Auth user for cleanup.
+        if (userCredential) {
+            await deleteUser(userCredential.user).catch(delErr => {
+              console.error("Cleanup Error: Failed to delete orphaned auth user.", delErr);
+            });
+        }
+      
+        let errorMessage = "No se pudo crear la cuenta. " + error.message;
+        if (error.code === 'auth/email-already-in-use') {
+            errorMessage = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
+        }
+        console.error("Member Registration Error:", error);
+        toast({ title: "Error de Registro", description: errorMessage, variant: "destructive" });
+    } finally {
+        setIsLoading(false);
+    }
   };
-
 
   return (
     <Form {...form}>
