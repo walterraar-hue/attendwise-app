@@ -31,7 +31,7 @@ const memberSchema = z.object({
   email: z.string().email("Por favor, introduce un email válido."),
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
   companyCode: z.string().min(1, "El código de compañía es requerido."),
-  role: z.enum(['Miembro', 'Manager', 'Operations Manager', 'CEO'], { required_error: "Debes seleccionar un rol." }),
+  role: z.enum(['Miembro', 'Operations Manager', 'CEO'], { required_error: "Debes seleccionar un rol." }),
 });
 
 const adminSchema = z.object({
@@ -82,7 +82,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       
       const newCompanyRef = doc(collection(firestore, 'companies')); 
 
-      const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Miembro': 0 };
+      const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Miembro': 0 };
 
       if (plan === 'basic') {
           roleLimits['Global Admin'] = 1;
@@ -90,13 +90,11 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       } else if (plan === 'pro') {
           roleLimits['Global Admin'] = 1;
           roleLimits['Operations Manager'] = 1;
-          roleLimits['Manager'] = 2;
           roleLimits['Miembro'] = 80;
       } else if (plan === 'premium') {
           roleLimits['Global Admin'] = 1;
           roleLimits['CEO'] = 1;
           roleLimits['Operations Manager'] = 2;
-          roleLimits['Manager'] = 5;
           roleLimits['Miembro'] = -1; 
       }
 
@@ -191,13 +189,9 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             createdAt: serverTimestamp(),
         });
         
-        // Only increment general 'usedSlots' if the role is a billable slot.
-        // Let's assume CEO and Operations Manager are also billable slots like Manager and Miembro
-        if (['Miembro', 'Manager', 'Operations Manager', 'CEO'].includes(values.role)) {
-            batch.update(companyRef, {
-                usedSlots: increment(1)
-            });
-        }
+        batch.update(companyRef, {
+            usedSlots: increment(1)
+        });
         
         await batch.commit();
 
@@ -215,7 +209,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
             });
         }
       
-        let errorMessage = "No se pudo crear la cuenta. " + error.message;
+        let errorMessage = "No se pudo crear la cuenta. " + (error.message || "Por favor, inténtalo de nuevo.");
         if (error.code === 'auth/email-already-in-use') {
             errorMessage = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
         }
@@ -305,7 +299,6 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="Miembro">Miembro del Equipo</SelectItem>
-                      <SelectItem value="Manager">Manager</SelectItem>
                       <SelectItem value="Operations Manager">Admin de Operaciones</SelectItem>
                       <SelectItem value="CEO">CEO</SelectItem>
                     </SelectContent>
@@ -335,3 +328,5 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     </Form>
   );
 }
+
+    
