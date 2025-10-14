@@ -104,6 +104,10 @@
           "type": "string",
           "description": "The scheduled appointment time for the check-in."
         },
+        "appointmentEndTime": {
+          "type": "string",
+          "description": "The scheduled end time for the shift or appointment."
+        },
         "checkInTimestamp": {
           "type": "string",
           "format": "date-time",
@@ -145,6 +149,10 @@
           "type": "string",
           "format": "uri",
           "description": "URL of the photo taken at check-out."
+        },
+        "aiCheckoutAnalysis": {
+            "type": ["string", "null"],
+            "description": "AI-generated analysis of the user's punctuality for the check-out."
         }
       },
       "required": [

@@ -31,6 +31,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
+import { checkoutPunctualityAnalysis } from '@/ai/flows/checkout-punctuality-analysis';
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
 const LOCATION_TIMEOUT_MS = 20000; // 20 seconds
@@ -52,12 +53,22 @@ function AttendanceDetailsDialog({ record, isOpen, onClose }: { record: Attendan
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-4">
-          {record.aiPunctualityAnalysis && (
-            <div className="p-3 rounded-md bg-purple-50 border border-purple-200">
-                <h3 className="font-semibold text-sm flex items-center gap-2 text-purple-800"><Wand2 className="size-4" />Análisis de Puntualidad</h3>
-                <p className="text-purple-700 text-sm mt-1">{record.aiPunctualityAnalysis}</p>
-            </div>
-          )}
+          
+          <div className="space-y-2">
+            {record.aiPunctualityAnalysis && (
+              <div className="p-3 rounded-md bg-purple-50 border border-purple-200">
+                  <h3 className="font-semibold text-sm flex items-center gap-2 text-purple-800"><Wand2 className="size-4" />Análisis de Puntualidad (Entrada)</h3>
+                  <p className="text-purple-700 text-sm mt-1">{record.aiPunctualityAnalysis}</p>
+              </div>
+            )}
+             {record.aiCheckoutAnalysis && (
+              <div className="p-3 rounded-md bg-blue-50 border border-blue-200">
+                  <h3 className="font-semibold text-sm flex items-center gap-2 text-blue-800"><Wand2 className="size-4" />Análisis de Salida</h3>
+                  <p className="text-blue-700 text-sm mt-1">{record.aiCheckoutAnalysis}</p>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Check-in Column */}
             <div className="space-y-4">
@@ -81,6 +92,7 @@ function AttendanceDetailsDialog({ record, isOpen, onClose }: { record: Attendan
               <Separator />
               {record.checkOutTimestamp ? (
                 <>
+                 {record.appointmentEndTime && <p className="text-sm"><span className="font-semibold">Hora Fin Citado:</span> {record.appointmentEndTime}</p>}
                  <p className="text-sm"><span className="font-semibold">Hora Registro:</span> {format(record.checkOutTimestamp.toDate(), "p", { locale: es })}</p>
                   <div>
                     <Label className="flex items-center gap-2 mb-1"><Camera className="size-4" /> Foto de Salida</Label>
@@ -246,7 +258,23 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         return;
     }
     setIsSubmitting(true);
+    let aiCheckoutAnalysis: string | null = null;
+
     try {
+        // AI Analysis
+        if (record.appointmentEndTime) {
+            const now = new Date();
+            const [hours, minutes] = record.appointmentEndTime.split(':').map(Number);
+            const appointmentEndDateTime = new Date();
+            appointmentEndDateTime.setHours(hours, minutes, 0, 0);
+            
+            // Positive means they left early, negative means they stayed late
+            const diffMinutes = (appointmentEndDateTime.getTime() - now.getTime()) / 60000;
+            
+            const result = await checkoutPunctualityAnalysis({ minutesDifference: Math.round(diffMinutes) });
+            aiCheckoutAnalysis = result.analysis;
+        }
+
         const imagePath = `attendances/${user.uid}/checkout_${new Date().toISOString()}.png`;
         const imageStorageRef = storageRef(getStorage(), imagePath);
         await uploadString(imageStorageRef, capturedImage, 'data_url');
@@ -257,7 +285,8 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
             checkOutTimestamp: serverTimestamp(),
             checkOutLocation: location,
             checkOutImageUrl: imageUrl,
-            status: 'closed'
+            status: 'closed',
+            aiCheckoutAnalysis: aiCheckoutAnalysis,
         });
 
         toast({ title: "¡Salida Registrada!", description: "Tu jornada ha finalizado correctamente." });
@@ -292,7 +321,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
                         </div>
                     </div>
                      {!isLocating && locationError ? (
-                       <Button className="w-full" onClick={handleRetryLocation} variant="outline">
+                       <Button className="w-full" onClick={handleRetryLocation} variant="outline" disabled={isLocating}>
                          <RefreshCw className="mr-2 h-4 w-4" />
                          Reintentar Ubicación
                        </Button>
@@ -374,6 +403,7 @@ export default function MyHistoryPage() {
                             <TableHead className="w-[180px]">Fecha</TableHead>
                             <TableHead>Hora Citado (Entrada)</TableHead>
                             <TableHead>Hora Registro (Entrada)</TableHead>
+                            <TableHead>Hora Citado (Salida)</TableHead>
                             <TableHead>Hora Registro (Salida)</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead className="text-right">Acciones</TableHead>
@@ -392,6 +422,13 @@ export default function MyHistoryPage() {
                             </TableCell>
                              <TableCell>
                                 <div className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
+                            </TableCell>
+                            <TableCell>
+                                {record.appointmentEndTime ? (
+                                    <div className="font-medium">{record.appointmentEndTime}</div>
+                                ) : (
+                                    <Badge variant="outline">N/A</Badge>
+                                )}
                             </TableCell>
                             <TableCell>
                                 {record.checkOutTimestamp ? (
@@ -420,7 +457,7 @@ export default function MyHistoryPage() {
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={6} className="h-24 text-center">
+                            <TableCell colSpan={7} className="h-24 text-center">
                                 No tienes registros de asistencia todavía.
                             </TableCell>
                         </TableRow>

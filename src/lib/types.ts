@@ -37,6 +37,7 @@ export interface AttendanceRecord {
   // Check-in details
   checkInTimestamp: any; // Firestore Timestamp
   appointmentTime: string;
+  appointmentEndTime?: string; // Scheduled end time
   workCenterId: string;
   checkInLocation: {
     latitude: number;
@@ -54,6 +55,7 @@ export interface AttendanceRecord {
     accuracy: number;
   };
   checkOutImageUrl?: string;
+  aiCheckoutAnalysis?: string | null; // AI analysis for checkout
   
   // Status of the record
   status: 'open' | 'closed';

@@ -37,6 +37,7 @@ const LOCATION_TIMEOUT_MS = 30000; // 30 seconds
 
 type SubmissionDetails = {
     appointmentTime: string;
+    appointmentEndTime: string;
     workCenterId: string;
     workCenterName: string;
     location: { latitude: number, longitude: number, accuracy: number } | null;
@@ -210,6 +211,7 @@ export default function RegisterAttendancePage() {
 
   // Form state
   const [appointmentTime, setAppointmentTime] = useState('');
+  const [appointmentEndTime, setAppointmentEndTime] = useState('');
   const [workCenterId, setWorkCenterId] = useState('');
   
   // Geolocation state
@@ -320,11 +322,11 @@ export default function RegisterAttendancePage() {
 
 
   const handleNextStep = () => {
-    if (!appointmentTime || !workCenterId) {
+    if (!appointmentTime || !workCenterId || !appointmentEndTime) {
         toast({
             variant: "destructive",
             title: "Campos Incompletos",
-            description: "Por favor, completa la hora y el centro de trabajo.",
+            description: "Por favor, completa las horas y el centro de trabajo.",
         });
         return;
     }
@@ -342,6 +344,7 @@ export default function RegisterAttendancePage() {
   const resetForm = () => {
     setStep(1);
     setAppointmentTime('');
+    setAppointmentEndTime('');
     setWorkCenterId('');
     setCapturedImage(null);
     setHasCameraPermission(null);
@@ -462,6 +465,7 @@ export default function RegisterAttendancePage() {
             userId: user.uid,
             checkInTimestamp: serverTimestamp(),
             appointmentTime: appointmentTime,
+            appointmentEndTime: appointmentEndTime,
             workCenterId: workCenterId,
             checkInLocation: {
                 latitude: location.latitude,
@@ -477,6 +481,7 @@ export default function RegisterAttendancePage() {
         const selectedWorkCenter = workCenters?.find(wc => wc.id === workCenterId);
         const submissionData: SubmissionDetails = {
             appointmentTime,
+            appointmentEndTime,
             workCenterId,
             workCenterName: selectedWorkCenter?.name || 'N/A',
             location,
@@ -571,9 +576,15 @@ export default function RegisterAttendancePage() {
                 
                 {step === 1 && (
                     <div className="space-y-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="appointment-time">Hora de la Cita</Label>
-                            <Input id="appointment-time" type="time" value={appointmentTime} onChange={e => setAppointmentTime(e.target.value)} />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="appointment-time">Hora de la Cita (Entrada)</Label>
+                                <Input id="appointment-time" type="time" value={appointmentTime} onChange={e => setAppointmentTime(e.target.value)} />
+                            </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="appointment-end-time">Hora de la Cita (Salida)</Label>
+                                <Input id="appointment-end-time" type="time" value={appointmentEndTime} onChange={e => setAppointmentEndTime(e.target.value)} />
+                            </div>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="work-center">Centro de Trabajo</Label>
