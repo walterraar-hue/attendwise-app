@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, setDoc, collection, increment } from "firebase/firestore";
+import { doc, writeBatch, serverTimestamp, setDoc, collection, query, where, getDocs, updateDoc, increment } from "firebase/firestore";
 import { errorEmitter } from "@/firebase/error-emitter";
 import { FirestorePermissionError } from "@/firebase/errors";
 
@@ -41,7 +41,7 @@ const adminSchema = z.object({
 });
 
 function SubmitButton({ mode, isLoading }: { mode: "admin" | "member", isLoading: boolean }) {
-  const text = mode === "admin" ? "Crear Equipo" : "Crear Cuenta";
+  const text = mode === "admin" ? "Crear Equipo" : "Activar Cuenta";
   return (
     <Button type="submit" className="w-full" disabled={isLoading}>
       {isLoading ? <Loader2 className="animate-spin" /> : text}
@@ -164,31 +164,54 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
  const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
     try {
-      // Step 1: Create the user in Firebase Auth.
+      // Step 1: Find the pending user document that the admin created.
+      const usersRef = collection(firestore, "users");
+      const q = query(
+        usersRef, 
+        where("email", "==", values.email), 
+        where("companyId", "==", values.companyCode),
+        where("status", "==", "pending")
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        toast({
+          title: "Invitación no encontrada",
+          description: "No se encontró una invitación pendiente para este email y código de empresa. Por favor, verifica los datos o contacta a tu administrador.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      const pendingUserDoc = querySnapshot.docs[0];
+
+      // Step 2: Create the user in Firebase Auth.
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Step 2: Create a 'pending' user document in Firestore using the user's UID as the document ID.
-      const userDocRef = doc(firestore, "users", user.uid);
+      // Step 3: Update the existing 'pending' document to 'active' and add the UID.
+      const userDocRef = doc(firestore, "users", pendingUserDoc.id);
       
-      await setDoc(userDocRef, {
-          id: user.uid,
-          companyId: values.companyCode,
-          name: values.name,
-          email: values.email,
-          role: "Miembro", // Default role
-          status: "pending"
-      });
+      const batch = writeBatch(firestore);
 
-      // Step 3: Increment the company's used slots.
+      batch.update(userDocRef, {
+          id: user.uid, // Add the auth UID to the document
+          name: values.name,
+          status: "active"
+      });
+      
       const companyRef = doc(firestore, 'companies', values.companyCode);
-      await setDoc(companyRef, {
+      batch.update(companyRef, {
           usedSlots: increment(1)
-      }, { merge: true });
+      });
+      
+      await batch.commit();
 
       toast({
-        title: "¡Cuenta Creada!",
-        description: "Tu cuenta ha sido creada. Por favor, inicia sesión para activar tu membresía.",
+        title: "¡Cuenta Activada!",
+        description: "Tu cuenta ha sido activada correctamente. Por favor, inicia sesión.",
       });
       router.push("/login");
 
@@ -201,18 +224,18 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         });
       } else if (error.code && error.code.includes('permission-denied')) {
            const permissionError = new FirestorePermissionError({
-                path: `setDoc to /users/${'new-user-uid'}`,
-                operation: 'create', 
+                path: `update /users/${'pending-user-id'}`,
+                operation: 'update', 
                 requestResourceData: { 
-                    "Note": "This was an attempt to create a pending user document after a successful Auth creation.",
-                    "user data": { name: values.name, email: values.email, role: "Miembro", status: "pending", companyId: values.companyCode },
+                    "Note": "This was an attempt to ACTIVATE a pending user document after a successful Auth creation.",
+                    "user data": { name: values.name, status: "active" },
                 }
           });
           errorEmitter.emit('permission-error', permissionError);
       } else {
         toast({
-          title: "Error de Creación de Cuenta",
-          description: error.message || "No se pudo crear la cuenta. Verifica tus datos e inténtalo de nuevo.",
+          title: "Error de Activación",
+          description: error.message || "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.",
           variant: "destructive",
         });
       }
