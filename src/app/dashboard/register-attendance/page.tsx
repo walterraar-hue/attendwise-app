@@ -49,6 +49,14 @@ export default function RegisterAttendancePage() {
 
   // Effect for Geolocation using watchPosition
   useEffect(() => {
+    // Function to stop watching location
+    const stopWatching = () => {
+      if (locationWatcherId.current !== null) {
+        navigator.geolocation.clearWatch(locationWatcherId.current);
+        locationWatcherId.current = null;
+      }
+    };
+
     if (step === 1) {
       setIsLocating(true);
       setCurrentAccuracy(null);
@@ -70,15 +78,11 @@ export default function RegisterAttendancePage() {
                   setLocation({ latitude, longitude, accuracy });
                   setLocationError(null);
                   setIsLocating(false); // Stop showing the main "locating" spinner
-                  // We can clear the watch now that we have a good location
-                  if (locationWatcherId.current !== null) {
-                    navigator.geolocation.clearWatch(locationWatcherId.current);
-                    locationWatcherId.current = null;
-                  }
+                  stopWatching(); // We have a good location, so we can stop watching
               } else {
-                if(!location) { // Only show this message if we don't have a good location yet.
+                 if(!location) { // Only show this message if we don't have a good location yet.
                     setLocationError(`Mejorando precisión...`);
-                }
+                 }
               }
           },
           (error) => {
@@ -89,7 +93,6 @@ export default function RegisterAttendancePage() {
               case error.POSITION_UNAVAILABLE:
                 setLocationError("Información de ubicación no disponible. Revisa tu conexión o señal GPS.");
                 break;
-
               case error.TIMEOUT:
                 setLocationError("Se agotó el tiempo para obtener la ubicación. Inténtalo de nuevo.");
                 break;
@@ -100,6 +103,7 @@ export default function RegisterAttendancePage() {
             setIsLocating(false);
             setCurrentAccuracy(null);
             setLocation(null);
+            stopWatching(); // Stop on error
           },
           { 
             enableHighAccuracy: true, 
@@ -109,19 +113,12 @@ export default function RegisterAttendancePage() {
       );
     } else {
       // Clean up watcher if we move to another step
-      if (locationWatcherId.current !== null) {
-        navigator.geolocation.clearWatch(locationWatcherId.current);
-        locationWatcherId.current = null;
-      }
+      stopWatching();
     }
 
     // Main cleanup function for when the component unmounts
-    return () => {
-      if (locationWatcherId.current !== null) {
-        navigator.geolocation.clearWatch(locationWatcherId.current);
-      }
-    };
-  }, [step, location]);
+    return stopWatching;
+  }, [step]);
 
 
   const handleNextStep = () => {
@@ -421,5 +418,3 @@ export default function RegisterAttendancePage() {
     </div>
   );
 }
-
-    
