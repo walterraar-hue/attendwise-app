@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -266,82 +267,139 @@ export default function AttendancePage() {
         </CardHeader>
         <CardContent>
             {isLoadingData ? (
-                <div className="space-y-2">
-                    {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+                <div className="space-y-4">
+                    {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
                 </div>
             ) : (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Empleado</TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Centro de Trabajo</TableHead>
-                            <TableHead>Entrada (Registro)</TableHead>
-                            <TableHead>Salida (Registro)</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <>
+                {/* Mobile View */}
+                <div className="md:hidden space-y-4">
                     {allRecords && allRecords.length > 0 ? (
                         allRecords.map((record) => (
-                        <TableRow key={record.id}>
-                            <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <UserIcon className="size-4 text-muted-foreground" />
-                                  <div>
-                                    <div className="font-medium">{record.userName}</div>
-                                    <div className="text-xs text-muted-foreground">{record.userEmail}</div>
-                                  </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                {record.checkInTimestamp?.toDate ? (
-                                    <>
-                                        <div className="font-medium capitalize">{format(record.checkInTimestamp.toDate(), "d MMM, yyyy", { locale: es })}</div>
-                                        <div className="text-sm text-muted-foreground">{format(record.checkInTimestamp.toDate(), "eeee", { locale: es })}</div>
-                                    </>
-                                ) : 'Fecha inválida'}
-                            </TableCell>
-                             <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Building className="size-4 text-muted-foreground" />
-                                  <span className="font-medium">{workCenterMap[record.workCenterId] || 'N/A'}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                {record.checkInTimestamp?.toDate ? (
-                                    <div className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
-                                ) : 'N/A'}
-                            </TableCell>
-                            <TableCell>
-                                {record.checkOutTimestamp?.toDate ? (
-                                    <div className="font-medium">{format(record.checkOutTimestamp.toDate(), "p", { locale: es })}</div>
-                                ) : (
-                                    <Badge variant="outline">Pendiente</Badge>
-                                )}
-                            </TableCell>
-                            <TableCell>
-                                <Badge variant={record.status === 'open' ? 'secondary' : 'default'} className="capitalize">
-                                    {record.status === 'open' ? 'Abierto' : 'Cerrado'}
-                                </Badge>
-                            </TableCell>
-                             <TableCell className="text-right">
-                                <Button variant="outline" size="sm" onClick={() => setSelectedRecord(record)}>
-                                    Ver Detalles
-                                </Button>
-                            </TableCell>
-                        </TableRow>
+                            <Card key={record.id} className="w-full">
+                                <CardHeader>
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <CardTitle className="text-base">{record.userName}</CardTitle>
+                                            <CardDescription className="text-xs">{record.userEmail}</CardDescription>
+                                        </div>
+                                        <Badge variant={record.status === 'open' ? 'secondary' : 'default'} className="capitalize">
+                                            {record.status === 'open' ? 'Abierto' : 'Cerrado'}
+                                        </Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-3 text-sm">
+                                    <div className="flex justify-between items-center text-xs">
+                                        <span className="text-muted-foreground">Fecha:</span>
+                                        <span className="font-medium capitalize">{format(record.checkInTimestamp.toDate(), "d MMM, yyyy", { locale: es })}</span>
+                                    </div>
+                                     <div className="flex justify-between items-center text-xs">
+                                        <span className="text-muted-foreground">Centro:</span>
+                                        <span className="font-medium">{workCenterMap[record.workCenterId] || 'N/A'}</span>
+                                    </div>
+                                    <Separator />
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Entrada:</span>
+                                        <span className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Salida:</span>
+                                        <span className="font-medium">
+                                            {record.checkOutTimestamp ? format(record.checkOutTimestamp.toDate(), "p", { locale: es }) : <Badge variant="outline">Pendiente</Badge>}
+                                        </span>
+                                    </div>
+                                    <Separator />
+                                    <div className="pt-2">
+                                        <Button variant="outline" size="sm" onClick={() => setSelectedRecord(record)} className="w-full">
+                                            Ver Detalles
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         ))
                     ) : (
-                        <TableRow>
-                            <TableCell colSpan={7} className="h-24 text-center">
-                                {!globalError && "No hay registros de asistencia en el equipo todavía."}
-                            </TableCell>
-                        </TableRow>
+                         <div className="h-24 text-center flex flex-col justify-center items-center">
+                            {!globalError && "No hay registros de asistencia en el equipo todavía."}
+                        </div>
                     )}
-                    </TableBody>
-                </Table>
+                </div>
+
+                {/* Desktop View */}
+                <div className="hidden md:block">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Empleado</TableHead>
+                                <TableHead>Fecha</TableHead>
+                                <TableHead>Centro de Trabajo</TableHead>
+                                <TableHead>Entrada (Registro)</TableHead>
+                                <TableHead>Salida (Registro)</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {allRecords && allRecords.length > 0 ? (
+                            allRecords.map((record) => (
+                            <TableRow key={record.id}>
+                                <TableCell>
+                                    <div className="flex items-center gap-2">
+                                    <UserIcon className="size-4 text-muted-foreground" />
+                                    <div>
+                                        <div className="font-medium">{record.userName}</div>
+                                        <div className="text-xs text-muted-foreground">{record.userEmail}</div>
+                                    </div>
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    {record.checkInTimestamp?.toDate ? (
+                                        <>
+                                            <div className="font-medium capitalize">{format(record.checkInTimestamp.toDate(), "d MMM, yyyy", { locale: es })}</div>
+                                            <div className="text-sm text-muted-foreground">{format(record.checkInTimestamp.toDate(), "eeee", { locale: es })}</div>
+                                        </>
+                                    ) : 'Fecha inválida'}
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex items-center gap-2">
+                                    <Building className="size-4 text-muted-foreground" />
+                                    <span className="font-medium">{workCenterMap[record.workCenterId] || 'N/A'}</span>
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    {record.checkInTimestamp?.toDate ? (
+                                        <div className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
+                                    ) : 'N/A'}
+                                </TableCell>
+                                <TableCell>
+                                    {record.checkOutTimestamp?.toDate ? (
+                                        <div className="font-medium">{format(record.checkOutTimestamp.toDate(), "p", { locale: es })}</div>
+                                    ) : (
+                                        <Badge variant="outline">Pendiente</Badge>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant={record.status === 'open' ? 'secondary' : 'default'} className="capitalize">
+                                        {record.status === 'open' ? 'Abierto' : 'Cerrado'}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <Button variant="outline" size="sm" onClick={() => setSelectedRecord(record)}>
+                                        Ver Detalles
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={7} className="h-24 text-center">
+                                    {!globalError && "No hay registros de asistencia en el equipo todavía."}
+                                </TableCell>
+                            </TableRow>
+                        )}
+                        </TableBody>
+                    </Table>
+                </div>
+                </>
             )}
         </CardContent>
       </Card>

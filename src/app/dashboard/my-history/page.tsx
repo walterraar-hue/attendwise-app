@@ -27,7 +27,7 @@ import {
   AlertDialogAction,
   AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
-import { Camera, MapPin, Wand2, LogIn, LogOut, ArrowRight, VideoOff, Loader2, RefreshCw, Building, MessageSquareWarning } from 'lucide-react';
+import { Camera, MapPin, Wand2, LogIn, LogOut, ArrowRight, VideoOff, Loader2, RefreshCw, Building, MessageSquareWarning, Clock } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -465,84 +465,147 @@ export default function MyHistoryPage() {
         </CardHeader>
         <CardContent>
             {isLoadingData ? (
-                <div className="space-y-2">
-                    {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+                <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-lg" />)}
                 </div>
             ) : (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[180px]">Fecha</TableHead>
-                            <TableHead>Centro de Trabajo</TableHead>
-                            <TableHead>Hora Citado (Entrada)</TableHead>
-                            <TableHead>Hora Registro (Entrada)</TableHead>
-                            <TableHead>Hora Citado (Salida)</TableHead>
-                            <TableHead>Hora Registro (Salida)</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                <>
+                 {/* Mobile View */}
+                 <div className="md:hidden space-y-4">
                     {records && records.length > 0 ? (
                         records.map((record) => (
-                        <TableRow key={record.id}>
-                            <TableCell>
-                                <div className="font-medium capitalize">{format(record.checkInTimestamp.toDate(), "eeee, d 'de' MMMM", { locale: es })}</div>
-                                <div className="text-sm text-muted-foreground">{format(record.checkInTimestamp.toDate(), "yyyy")}</div>
-                            </TableCell>
-                             <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Building className="size-4 text-muted-foreground" />
-                                  <span className="font-medium">{workCenterMap[record.workCenterId] || 'N/A'}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div className="font-medium">{record.appointmentTime}</div>
-                            </TableCell>
-                             <TableCell>
-                                <div className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
-                            </TableCell>
-                            <TableCell>
-                                {record.appointmentEndTime ? (
-                                    <div className="font-medium">{record.appointmentEndTime}</div>
-                                ) : (
-                                    <Badge variant="outline">N/A</Badge>
-                                )}
-                            </TableCell>
-                            <TableCell>
-                                {record.checkOutTimestamp ? (
-                                    <div className="font-medium">{format(record.checkOutTimestamp.toDate(), "p", { locale: es })}</div>
-                                ) : (
-                                    <Badge variant="outline">Pendiente</Badge>
-                                )}
-                            </TableCell>
-                            <TableCell>
-                                <Badge variant={record.status === 'open' ? 'secondary' : 'default'} className="capitalize">
-                                    {record.status === 'open' ? 'Abierto' : 'Cerrado'}
-                                </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                               {record.status === 'open' ? (
-                                 <Button variant="destructive" size="sm" onClick={() => setSelectedRecordForCheckOut(record)}>
-                                   Registrar Salida
-                                 </Button>
-                               ) : (
-                                 <Button variant="outline" size="sm" onClick={() => setSelectedRecordForDetails(record)}>
-                                   Ver Detalles
-                                 </Button>
-                               )}
-                            </TableCell>
-                        </TableRow>
+                            <Card key={record.id} className="w-full">
+                                <CardHeader>
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <CardTitle className="text-lg capitalize">{format(record.checkInTimestamp.toDate(), "eeee, d MMM", { locale: es })}</CardTitle>
+                                            <CardDescription>{workCenterMap[record.workCenterId] || 'N/A'}</CardDescription>
+                                        </div>
+                                        <Badge variant={record.status === 'open' ? 'secondary' : 'default'} className="capitalize">
+                                            {record.status === 'open' ? 'Abierto' : 'Cerrado'}
+                                        </Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-3 text-sm">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Entrada (Cita):</span>
+                                        <span className="font-medium">{record.appointmentTime}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Entrada (Registro):</span>
+                                        <span className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</span>
+                                    </div>
+                                    <Separator />
+                                     <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Salida (Cita):</span>
+                                        <span className="font-medium">{record.appointmentEndTime || <Badge variant="outline">N/A</Badge>}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Salida (Registro):</span>
+                                        <span className="font-medium">
+                                             {record.checkOutTimestamp ? format(record.checkOutTimestamp.toDate(), "p", { locale: es }) : <Badge variant="outline">Pendiente</Badge>}
+                                        </span>
+                                    </div>
+                                    <Separator />
+                                     <div className="pt-2">
+                                        {record.status === 'open' ? (
+                                            <Button variant="destructive" size="sm" onClick={() => setSelectedRecordForCheckOut(record)} className="w-full">
+                                                Registrar Salida
+                                            </Button>
+                                        ) : (
+                                            <Button variant="outline" size="sm" onClick={() => setSelectedRecordForDetails(record)} className="w-full">
+                                                Ver Detalles
+                                            </Button>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         ))
                     ) : (
-                        <TableRow>
-                            <TableCell colSpan={8} className="h-24 text-center">
-                                No tienes registros de asistencia todavía.
-                            </TableCell>
-                        </TableRow>
+                        <div className="h-24 text-center flex flex-col justify-center items-center">
+                            <p>No tienes registros de asistencia todavía.</p>
+                        </div>
                     )}
-                    </TableBody>
-                </Table>
+                 </div>
+
+                {/* Desktop View */}
+                <div className="hidden md:block">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[180px]">Fecha</TableHead>
+                                <TableHead>Centro de Trabajo</TableHead>
+                                <TableHead>Hora Citado (Entrada)</TableHead>
+                                <TableHead>Hora Registro (Entrada)</TableHead>
+                                <TableHead>Hora Citado (Salida)</TableHead>
+                                <TableHead>Hora Registro (Salida)</TableHead>
+                                <TableHead>Estado</TableHead>
+                                <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {records && records.length > 0 ? (
+                            records.map((record) => (
+                            <TableRow key={record.id}>
+                                <TableCell>
+                                    <div className="font-medium capitalize">{format(record.checkInTimestamp.toDate(), "eeee, d 'de' MMMM", { locale: es })}</div>
+                                    <div className="text-sm text-muted-foreground">{format(record.checkInTimestamp.toDate(), "yyyy")}</div>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex items-center gap-2">
+                                    <Building className="size-4 text-muted-foreground" />
+                                    <span className="font-medium">{workCenterMap[record.workCenterId] || 'N/A'}</span>
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="font-medium">{record.appointmentTime}</div>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
+                                </TableCell>
+                                <TableCell>
+                                    {record.appointmentEndTime ? (
+                                        <div className="font-medium">{record.appointmentEndTime}</div>
+                                    ) : (
+                                        <Badge variant="outline">N/A</Badge>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    {record.checkOutTimestamp ? (
+                                        <div className="font-medium">{format(record.checkOutTimestamp.toDate(), "p", { locale: es })}</div>
+                                    ) : (
+                                        <Badge variant="outline">Pendiente</Badge>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    <Badge variant={record.status === 'open' ? 'secondary' : 'default'} className="capitalize">
+                                        {record.status === 'open' ? 'Abierto' : 'Cerrado'}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                {record.status === 'open' ? (
+                                    <Button variant="destructive" size="sm" onClick={() => setSelectedRecordForCheckOut(record)}>
+                                    Registrar Salida
+                                    </Button>
+                                ) : (
+                                    <Button variant="outline" size="sm" onClick={() => setSelectedRecordForDetails(record)}>
+                                    Ver Detalles
+                                    </Button>
+                                )}
+                                </TableCell>
+                            </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={8} className="h-24 text-center">
+                                    No tienes registros de asistencia todavía.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                        </TableBody>
+                    </Table>
+                </div>
+                </>
             )}
         </CardContent>
       </Card>
