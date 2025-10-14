@@ -18,8 +18,8 @@ export default function RegisterMemberPage() {
         <Card className="shadow-lg">
           <CardHeader className="items-center text-center">
             <Logo />
-            <CardTitle className="font-headline text-2xl">Unirme a un Equipo</CardTitle>
-            <CardDescription>Usa un código de invitación y selecciona tu rol para unirte al equipo.</CardDescription>
+            <CardTitle className="font-headline text-2xl">Crear Cuenta de Miembro</CardTitle>
+            <CardDescription>Completa tus datos para crear tu cuenta. Debes haber sido invitado por tu administrador.</CardDescription>
           </CardHeader>
           <CardContent>
             <ActivationForm mode="member" />

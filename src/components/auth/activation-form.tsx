@@ -4,13 +4,13 @@
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from "@radix-ui/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
-import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, getDoc, increment, query, collection, where, getDocs, updateDoc, setDoc } from "firebase/firestore";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, writeBatch, serverTimestamp, collection, setDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,22 +23,12 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { UserRole } from "@/lib/types";
 
 
 const memberSchema = z.object({
   name: z.string().min(2, "Please enter your full name."),
   email: z.string().email("Please enter a valid email address."),
-  companyCode: z.string().min(1, "Company code is required."),
   password: z.string().min(8, "Password must be at least 8 characters long."),
-  role: z.string().min(1, "Role is required") as z.ZodType<UserRole>,
 });
 
 
@@ -49,20 +39,13 @@ const adminSchema = z.object({
 });
 
 function SubmitButton({ mode, isLoading }: { mode: "admin" | "member", isLoading: boolean }) {
-  const text = mode === "admin" ? "Crear Equipo" : "Activar Cuenta";
+  const text = mode === "admin" ? "Crear Equipo" : "Crear Cuenta";
   return (
     <Button type="submit" className="w-full" disabled={isLoading}>
       {isLoading ? <Loader2 className="animate-spin" /> : text}
     </Button>
   );
 }
-
-const ALL_ROLES_MAP = new Map<UserRole, string>([
-    ['CEO', 'CEO'],
-    ['Operations Manager', 'Admin de Operaciones'],
-    ['Manager', 'Manager'],
-    ['Miembro', 'Miembro'],
-]);
 
 export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?: string }) {
   const { toast } = useToast();
@@ -76,7 +59,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
   const form = useForm({
     resolver: zodResolver(isMemberFlow ? memberSchema : adminSchema),
     defaultValues: isMemberFlow
-      ? { name: "", email: "", companyCode: "", password: "", role: "Miembro" }
+      ? { name: "", email: "", password: "" }
       : { name: "", email: "", password: "" },
   });
 
@@ -94,7 +77,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
       const batch = writeBatch(firestore);
       
-      const newCompanyRef = doc(firestore, 'companies', doc(firestore, 'companies').id);
+      const newCompanyRef = doc(collection(firestore, 'companies'));
       const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Miembro': 0 };
 
       if (plan === 'basic') {
@@ -161,74 +144,27 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       return;
     }
 
-    const { name, email, companyCode, password, role } = values;
-
     try {
-        // Step 1: Create the Auth user FIRST. This gives us an authenticated context.
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        await createUserWithEmailAndPassword(auth, values.email, values.password);
 
-        try {
-            // Step 2: Now that we are authenticated, validate the company and its limits.
-            const companyRef = doc(firestore, 'companies', companyCode);
-            const companySnap = await getDoc(companyRef);
-
-            if (!companySnap.exists()) {
-                throw new Error('El código de la empresa no es válido.');
-            }
-
-            const companyData = companySnap.data();
-            const roleLimit = companyData.roleLimits?.[role] ?? 0;
-            const usersInRole = companyData.roleCounts?.[role] ?? 0;
-            
-            if (roleLimit !== -1 && usersInRole >= roleLimit) {
-                throw new Error(`No hay más cupos disponibles para el rol '${role}'.`);
-            }
-
-            // Step 3: Create user document and update company atomically in a batch.
-            const batch = writeBatch(firestore);
-
-            const userDocRef = doc(firestore, 'users', user.uid);
-            batch.set(userDocRef, {
-                id: user.uid,
-                companyId: companyCode,
-                name: name,
-                email: email,
-                role: role,
-                status: 'active',
-                createdAt: serverTimestamp(),
-            });
-
-            // Atomically increment the counters.
-            const newRoleCount = (companyData.roleCounts?.[role] || 0) + 1;
-            batch.update(companyRef, {
-                usedSlots: increment(1),
-                [`roleCounts.${role}`]: newRoleCount,
-            });
-
-            await batch.commit();
-
-            toast({
-                title: "¡Cuenta Activada!",
-                description: "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
-            });
-            router.push("/login");
-
-        } catch (validationError: any) {
-            // If validation or Firestore writes fail, we must delete the created Auth user to allow retry.
-            await deleteUser(user);
-            throw validationError; // Re-throw the inner error to be caught by the outer catch block.
-        }
+        // The logic to find the pending user and activate it will now run on the login page
+        // after the user successfully signs in for the first time.
+        
+        toast({
+            title: "¡Cuenta Creada!",
+            description: "Tu cuenta ha sido creada. Por favor, inicia sesión para activarla y unirte a tu equipo.",
+        });
+        router.push("/login");
 
     } catch (error: any) {
-        let errorMessage = "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.";
+        let errorMessage = "No se pudo crear la cuenta.";
         if (error.code === 'auth/email-already-in-use') {
           errorMessage = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
         } else {
-            console.error("Client-side Member Registration Error:", error);
+            console.error("Member Registration Error:", error);
             errorMessage = error.message || errorMessage;
         }
-        toast({ title: "Error de Activación", description: errorMessage, variant: "destructive" });
+        toast({ title: "Error de Registro", description: errorMessage, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -268,43 +204,9 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           )}
         />
         {isMemberFlow && (
-          <>
-            <FormField
-              control={form.control}
-              name="companyCode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Código de la Empresa</FormLabel>
-                  <FormControl>
-                    <Input placeholder="El código de tu empresa" {...field} className="font-code"/>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Rol</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona tu rol" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Array.from(ALL_ROLES_MAP.entries()).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </>
+          <p className="text-sm text-muted-foreground pt-2">
+              Tu administrador de equipo ya te ha asignado un rol y un código de compañía. Simplemente crea tu cuenta y serás añadido automáticamente al iniciar sesión.
+          </p>
         )}
         <FormField
           control={form.control}

@@ -12,10 +12,11 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
+import { signInWithEmailAndPassword, type User as AuthUser } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 
 const loginSchema = z.object({
@@ -25,6 +26,7 @@ const loginSchema = z.object({
 
 export default function LoginPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -35,6 +37,39 @@ export default function LoginPage() {
       password: '',
     },
   });
+
+  const activatePendingUser = async (authUser: AuthUser) => {
+    if (!firestore || !authUser.email) return;
+
+    try {
+      const usersRef = collection(firestore, "users");
+      const q = query(usersRef, where("email", "==", authUser.email), where("status", "==", "pending"));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        await updateDoc(doc(firestore, "users", userDoc.id), {
+          status: 'active',
+          id: authUser.uid, // This is the crucial step: link the Auth UID
+          uid: authUser.uid, // Also add uid field for consistency
+          activatedAt: serverTimestamp(),
+        });
+        toast({
+          title: "¡Cuenta Activada!",
+          description: "Bienvenido a tu equipo.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error activating user:", error);
+      toast({
+        variant: "destructive",
+        title: "Error de Activación",
+        description: "No se pudo activar tu cuenta. " + (error.message || ""),
+      });
+      // We don't re-throw, just notify the user. They are logged in but not fully activated.
+    }
+  };
+
 
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     if (!auth) {
@@ -47,7 +82,10 @@ export default function LoginPage() {
     }
 
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      
+      // After successful sign-in, check if the user needs activation
+      await activatePendingUser(userCredential.user);
       
       toast({
         title: "Inicio de Sesión Exitoso",
@@ -56,7 +94,8 @@ export default function LoginPage() {
 
       router.push('/dashboard');
 
-    } catch (error: any) {
+    } catch (error: any)
+      {
       console.error("Login error:", error);
       
       let description = "Email o contraseña incorrectos.";
