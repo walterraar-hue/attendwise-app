@@ -11,7 +11,7 @@ import { useEffect } from "react";
 import { UserNav } from "@/components/dashboard/user-nav";
 import Logo from "@/components/logo";
 import { Button } from "@/components/ui/button";
-import { PanelLeft } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import Breadcrumbs from "@/components/dashboard/breadcrumbs";
 import type { User as AppUser } from "@/lib/types";
@@ -48,7 +48,7 @@ function DashboardHeader({ userRole, userProps, isLoading }: { userRole: string,
                     className="md:hidden -ml-2 hover:bg-primary-foreground/20 hover:text-primary-foreground"
                     onClick={toggleSidebar}
                 >
-                    <PanelLeft className="h-5 w-5" />
+                    <Menu className="h-5 w-5" />
                     <span className="sr-only">Toggle Sidebar</span>
                 </Button>
                 <div className="hidden md:block">
