@@ -9,8 +9,8 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { useAuth, useFirestore } from "@/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, writeBatch, serverTimestamp, getDoc, increment } from "firebase/firestore";
+import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
+import { doc, writeBatch, serverTimestamp, getDoc, increment, query, collection, where, getDocs, updateDoc, setDoc } from "firebase/firestore";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -164,56 +164,65 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     const { name, email, companyCode, password, role } = values;
 
     try {
-        // 1. Validate Company and Role Limits
-        const companyRef = doc(firestore, 'companies', companyCode);
-        const companySnap = await getDoc(companyRef);
-
-        if (!companySnap.exists()) {
-            throw new Error('El código de la empresa no es válido.');
-        }
-
-        const companyData = companySnap.data();
-        const roleLimit = companyData.roleLimits?.[role] ?? 0;
-        const usedSlots = companyData.usedSlots || 0;
-        
-        // This is a client-side check, the server-side rules are the ultimate authority
-        if (roleLimit !== -1 && usedSlots >= roleLimit) {
-             throw new Error(`No hay más cupos disponibles para el rol '${role}'.`);
-        }
-
-        // 2. Create Firebase Auth user
+        // Step 1: Create the Auth user FIRST. This gives us an authenticated context.
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // 3. Create user document and update company in a batch
-        const batch = writeBatch(firestore);
+        try {
+            // Step 2: Now that we are authenticated, validate the company and its limits.
+            const companyRef = doc(firestore, 'companies', companyCode);
+            const companySnap = await getDoc(companyRef);
 
-        const userDocRef = doc(firestore, 'users', user.uid);
-        batch.set(userDocRef, {
-            id: user.uid,
-            companyId: companyCode,
-            name: name,
-            email: email,
-            role: role,
-            status: 'active', // Directly active
-        });
+            if (!companySnap.exists()) {
+                throw new Error('El código de la empresa no es válido.');
+            }
 
-        // Increment the used slots for the company
-        batch.update(companyRef, {
-            usedSlots: increment(1)
-        });
+            const companyData = companySnap.data();
+            const roleLimit = companyData.roleLimits?.[role] ?? 0;
+            const usersInRole = companyData.roleCounts?.[role] ?? 0;
+            
+            if (roleLimit !== -1 && usersInRole >= roleLimit) {
+                throw new Error(`No hay más cupos disponibles para el rol '${role}'.`);
+            }
 
-        await batch.commit();
+            // Step 3: Create user document and update company atomically in a batch.
+            const batch = writeBatch(firestore);
 
-        toast({
-            title: "¡Cuenta Activada!",
-            description: "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
-        });
-        router.push("/login");
+            const userDocRef = doc(firestore, 'users', user.uid);
+            batch.set(userDocRef, {
+                id: user.uid,
+                companyId: companyCode,
+                name: name,
+                email: email,
+                role: role,
+                status: 'active',
+                createdAt: serverTimestamp(),
+            });
+
+            // Atomically increment the counters.
+            const newRoleCount = (companyData.roleCounts?.[role] || 0) + 1;
+            batch.update(companyRef, {
+                usedSlots: increment(1),
+                [`roleCounts.${role}`]: newRoleCount,
+            });
+
+            await batch.commit();
+
+            toast({
+                title: "¡Cuenta Activada!",
+                description: "Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.",
+            });
+            router.push("/login");
+
+        } catch (validationError: any) {
+            // If validation or Firestore writes fail, we must delete the created Auth user to allow retry.
+            await deleteUser(user);
+            throw validationError; // Re-throw the inner error to be caught by the outer catch block.
+        }
 
     } catch (error: any) {
         let errorMessage = "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.";
-        if (error.code === 'auth/email-already-exists') {
+        if (error.code === 'auth/email-already-in-use') {
           errorMessage = "Este correo electrónico ya está registrado. Por favor, inicia sesión.";
         } else {
             console.error("Client-side Member Registration Error:", error);

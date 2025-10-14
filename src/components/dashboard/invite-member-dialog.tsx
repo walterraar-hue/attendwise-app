@@ -44,7 +44,7 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Invitar a un nuevo usuario</DialogTitle>
+          <DialogTitle>Invitar a un nuevo miembro</DialogTitle>
           <DialogDescription>
             Comparte el código de la compañía con los nuevos miembros para que puedan unirse a tu equipo desde la página de registro.
           </DialogDescription>
@@ -78,4 +78,3 @@ export function InviteMemberDialog({ company, users }: { company: { id: string, 
     </Dialog>
   );
 }
-
