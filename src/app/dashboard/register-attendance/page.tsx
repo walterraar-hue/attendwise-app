@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon, Wand2 } from 'lucide-react';
+import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
@@ -23,6 +23,7 @@ const workCenters = [
 ];
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
+const LOCATION_TIMEOUT_MS = 20000; // 20 seconds
 
 export default function RegisterAttendancePage() {
   const { toast } = useToast();
@@ -68,6 +69,13 @@ export default function RegisterAttendancePage() {
         setIsLocating(false);
         return;
       }
+
+      const timeoutId = setTimeout(() => {
+        if (location) return; // Already got a good location
+        stopWatching();
+        setLocationError("Se agotó el tiempo para obtener la ubicación. Inténtalo de nuevo.");
+        setIsLocating(false);
+      }, LOCATION_TIMEOUT_MS);
       
       locationWatcherId.current = navigator.geolocation.watchPosition(
           (position) => {
@@ -78,6 +86,7 @@ export default function RegisterAttendancePage() {
                   setLocation({ latitude, longitude, accuracy });
                   setLocationError(null);
                   setIsLocating(false); // Stop showing the main "locating" spinner
+                  clearTimeout(timeoutId); // Clear the timeout as we succeeded
                   stopWatching(); // We have a good location, so we can stop watching
               } else {
                  if(!location) { // Only show this message if we don't have a good location yet.
@@ -86,6 +95,7 @@ export default function RegisterAttendancePage() {
               }
           },
           (error) => {
+            clearTimeout(timeoutId); // Clear the timeout on error
             switch (error.code) {
               case error.PERMISSION_DENIED:
                 setLocationError("Permiso de ubicación denegado. Es necesario para registrar la asistencia.");
@@ -94,7 +104,7 @@ export default function RegisterAttendancePage() {
                 setLocationError("Información de ubicación no disponible. Revisa tu conexión o señal GPS.");
                 break;
               case error.TIMEOUT:
-                setLocationError("Se agotó el tiempo para obtener la ubicación. Inténtalo de nuevo.");
+                 setLocationError("Se agotó el tiempo para obtener la ubicación. Inténtalo de nuevo.");
                 break;
               default:
                 setLocationError("Ocurrió un error desconocido al obtener la ubicación.");
@@ -107,7 +117,7 @@ export default function RegisterAttendancePage() {
           },
           { 
             enableHighAccuracy: true, 
-            timeout: 20000, // 20 seconds timeout for the entire watch
+            timeout: 5000, // Timeout for each individual update attempt
             maximumAge: 0 
           }
       );
@@ -117,7 +127,9 @@ export default function RegisterAttendancePage() {
     }
 
     // Main cleanup function for when the component unmounts
-    return stopWatching;
+    return () => {
+        stopWatching();
+    };
   }, [step]);
 
 
@@ -285,11 +297,12 @@ export default function RegisterAttendancePage() {
         </div>
       );
     }
-
+    
     if (locationError) {
+      const isImproving = locationError.startsWith('Mejorando');
       return (
-        <div className="flex items-center gap-2 text-sm text-destructive">
-          <AlertTriangleIcon className="h-4 w-4" />
+        <div className={`flex items-center gap-2 text-sm ${isImproving ? 'text-amber-600' : 'text-destructive'}`}>
+           {isImproving ? <Loader2 className="animate-spin h-4 w-4" /> : <AlertTriangleIcon className="h-4 w-4" />}
           <span>{locationError} {currentAccuracy && `(Precisión actual: ${currentAccuracy.toFixed(0)}m)`}</span>
         </div>
       );
@@ -362,7 +375,8 @@ export default function RegisterAttendancePage() {
                               <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
                               {hasCameraPermission === null && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white">
-                                  <p>Cargando cámara...</p>
+                                  <Loader2 className="animate-spin mr-2" />
+                                  <p>Iniciando cámara...</p>
                                 </div>
                               )}
                               {hasCameraPermission === false && (
@@ -417,4 +431,5 @@ export default function RegisterAttendancePage() {
       </div>
     </div>
   );
-}
+
+    
