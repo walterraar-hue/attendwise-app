@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -66,19 +67,19 @@ function WorkCenterForm({ companyId }: { companyId: string }) {
   };
 
   return (
-     <Card>
+     <Card className="h-fit">
       <CardHeader>
         <CardTitle>Añadir Nuevo Centro de Trabajo</CardTitle>
         <CardDescription>Crea un nuevo centro de trabajo para tu compañía.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-end gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="name"
               render={({ field }) => (
-                <FormItem className="flex-grow">
+                <FormItem>
                   <FormLabel>Nombre del Centro</FormLabel>
                   <FormControl>
                     <Input placeholder="Ej: Oficina Principal, Bodega Central..." {...field} />
@@ -87,9 +88,9 @@ function WorkCenterForm({ companyId }: { companyId: string }) {
                 </FormItem>
               )}
             />
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? <Loader2 className="animate-spin" /> : <PlusCircle />}
-              <span className="ml-2 hidden sm:inline">Añadir</span>
+              <span className="ml-2">Añadir Centro</span>
             </Button>
           </form>
         </Form>
@@ -122,26 +123,40 @@ function WorkCentersList({ workCenters, companyId, isLoading }: { workCenters: W
 
   if (isLoading) {
     return (
-      <div className="space-y-2 mt-4">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-      </div>
+      <Card>
+          <CardHeader>
+            <CardTitle>Centros de Trabajo Existentes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 mt-4">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+            </div>
+          </CardContent>
+      </Card>
     )
   }
   
   if (!workCenters || workCenters.length === 0) {
     return (
-      <div className="text-center text-muted-foreground p-8 border-2 border-dashed rounded-lg mt-8">
-        <Building className="mx-auto h-12 w-12" />
-        <p className="mt-4 text-sm">No hay centros de trabajo creados.</p>
-        <p className="text-xs">Usa el formulario de arriba para añadir el primero.</p>
-      </div>
+     <Card>
+        <CardHeader>
+            <CardTitle>Centros de Trabajo Existentes</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <div className="text-center text-muted-foreground p-8 border-2 border-dashed rounded-lg mt-8">
+                <Building className="mx-auto h-12 w-12" />
+                <p className="mt-4 text-sm">No hay centros de trabajo creados.</p>
+                <p className="text-xs">Usa el formulario de la izquierda para añadir el primero.</p>
+            </div>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <Card className="mt-8">
+    <Card>
       <CardHeader>
         <CardTitle>Centros de Trabajo Existentes</CardTitle>
       </CardHeader>
@@ -233,19 +248,23 @@ export default function SettingsPage() {
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <Header title="Configuración" />
-      </div>
-      <div className="flex justify-center">
-        <div className="w-full max-w-4xl">
-          {companyId ? (
-            <>
-              <WorkCenterForm companyId={companyId} />
-              <WorkCentersList workCenters={workCenters} companyId={companyId} isLoading={isLoadingWorkCenters} />
-            </>
-          ) : (
-            <p>Cargando información de la compañía...</p>
-          )}
+      <Header title="Configuración" />
+      <div className="max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div className="lg:col-span-2">
+                {companyId ? (
+                    <WorkCenterForm companyId={companyId} />
+                ) : (
+                    <Skeleton className="h-64 w-full" />
+                )}
+            </div>
+            <div className="lg:col-span-3">
+                {companyId ? (
+                    <WorkCentersList workCenters={workCenters} companyId={companyId} isLoading={isLoadingWorkCenters} />
+                ) : (
+                    <Skeleton className="h-96 w-full" />
+                )}
+            </div>
         </div>
       </div>
     </div>
