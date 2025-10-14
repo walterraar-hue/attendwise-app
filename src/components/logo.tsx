@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Timer } from "lucide-react";
+import Image from "next/image";
 
 export default function Logo({ 
   className, 
@@ -15,8 +15,14 @@ export default function Logo({
   return (
     <div className={cn("flex items-center gap-3", className)}>
       {showIcon && (
-        <div className="rounded-md bg-primary-foreground/20 p-2 text-primary-foreground">
-          <Timer className="size-6" />
+        <div className="relative h-8 w-8">
+          <Image 
+            src="/logo.png" // Coloca tu logo (ej. logo.png) en la carpeta /public
+            alt="Logo de Serlogint Attend"
+            fill
+            sizes="32px"
+            className="object-contain"
+          />
         </div>
       )}
       <div className="flex flex-col">

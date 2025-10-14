@@ -80,7 +80,7 @@ export function SidebarNav() {
     <>
       <SidebarHeader className="p-4 hidden md:flex">
         <div className="flex items-center gap-2">
-            <Logo />
+            <Logo showIcon={false} />
         </div>
       </SidebarHeader>
       <SidebarContent>
