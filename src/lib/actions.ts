@@ -2,7 +2,7 @@
 'use server';
 
 import { z } from 'zod';
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
@@ -14,11 +14,7 @@ const firebaseAdminConfig = {
 
 if (!getApps().length) {
   initializeApp({
-    credential: {
-      projectId: firebaseAdminConfig.projectId!,
-      clientEmail: firebaseAdminConfig.clientEmail!,
-      privateKey: firebaseAdminConfig.privateKey!,
-    },
+    credential: cert(firebaseAdminConfig),
   });
 }
 
