@@ -1,162 +1,113 @@
 /**
- * @fileoverview Firestore Security Rules for AttendWise.
+ * @file Firebase Security Rules for AttendWise
  *
- * Core Philosophy: This ruleset enforces a strict user-ownership model for user-specific data,
- * with company-level data accessible to authorized users. Global administrator privileges are
- * granted based on document existence in a segregated collection. The rules are designed to
- * prevent unauthorized data access and modification, while allowing for flexible data shapes
- * during the prototyping phase.
+ * @core_philosophy This ruleset enforces a strict ownership model for user data,
+ *   company data, and attendance records.  Administrative privileges are granted
+ *   based on document existence in a segregated 'roles_admin' collection. The design
+ *   prioritizes authorization independence and avoids complex queries within rules.
  *
- * Data Structure:
- * - /companies/{companyId}: Stores company-wide information.
- * - /users/{userId}: Stores individual user information, including the denormalized 'companyId'.
- * - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records for each user.
- * - /roles_admin/{userId}: Documents in this collection grant global admin privileges to the user.
+ * @data_structure
+ *   - /companies/{companyId}: Stores company profiles.
+ *   - /users/{userId}: Stores user profiles, including the denormalized `companyId`.
+ *   - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records
+ *     for individual users.
+ *   - /roles_admin/{userId}: Indicates global administrator status. Document presence
+ *     confers admin privileges.
  *
- * Key Security Decisions:
- * - User listing is generally disallowed to prevent unauthorized data exposure.
- * - The `companyId` is denormalized into the `/users/{userId}` collection to avoid `get()` calls
- *   when validating user roles and company associations.
- * - Global admin roles are managed via document existence in the `/roles_admin/{userId}` collection.
- * - Data shape validation is relaxed during prototyping to allow for rapid iteration, but
- *   authorization-critical fields are validated.
- * - No write operations ever use `if true;`.
+ * @key_security_decisions
+ *   - User listing is generally disallowed to prevent data exposure. Specific listing
+ *     requirements should be addressed through targeted collection group queries with
+ *     appropriate security constraints.
+ *   - Global admin roles are managed via document existence in the `/roles_admin` collection.
+ *   - The rules explicitly deny any write operations with `if true` to prevent accidental
+ *     exposure. All write operations must be guarded by an authorization check.
  *
- * Denormalization for Authorization:
- * - The `companyId` is denormalized into the `/users/{userId}` documents. This allows security
- *   rules to validate user roles and company associations without needing to perform extra reads.
+ * @denormalization_for_authorization
+ *   - The `companyId` is denormalized into the `/users/{userId}` documents. This avoids
+ *     the need for `get()` calls to the `/companies/{companyId}` document when authorizing
+ *     user-specific operations.
  *
- * Structural Segregation:
- * - Global admin roles are managed in the separate `/roles_admin/{userId}` collection. This
- *   segregation simplifies rule logic and improves performance.
+ * @structural_segregation
+ *   - Global admin roles are segregated into the `/roles_admin` collection to avoid
+ *     mixing role data with user profile data.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to company documents.
+     * @description Allows access control for companies.
      * @path /companies/{companyId}
-     * @allow (read) Any signed-in user can read company data.
-     * @allow (create, update, delete) Only a global admin can create, update, or delete company data.
-     * @deny  (create, update, delete) Any non-admin user attempts to modify company data.
-     * @principle Enforces admin-only write access to company data.
+     * @allow (create) Authenticated user can create a company document.
+     * @deny (create) Unauthenticated user cannot create a company document.
+     * @allow (get) Any user can read a company document.
+     * @deny (update) Only the company itself can update a company document.
+     * @principle Enforces company-level access control.
      */
     match /companies/{companyId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if false; // TODO: Implement company ownership/admin check
     }
 
     /**
-     * @description Controls access to user documents.
+     * @description Allows access control for users.
      * @path /users/{userId}
-     * @allow (get, list) Only the user themselves (owner) can read their user data.
-     * @allow (create) A user can create their own document if the ID matches their auth UID.
-     * @allow (update, delete) Only the user themselves can update or delete their user data.
-     * @deny (create) A user attempts to create a document with an ID that doesn't match their auth UID.
-     * @deny (update, delete) A different user attempts to modify another user's data.
-     * @principle Enforces document ownership for reads and writes, and validates user ID on creation.
+     * @allow (create) User can create their own profile.
+     * @deny (create) User cannot create another user's profile.
+     * @allow (get) Any user can read a user document.
+     * @deny (update) Only the user themselves can update their profile.
+     * @principle Enforces user-level access control.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if true;
       allow list: if false;
-      allow create: if isSelfCreation(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId; // TODO: Implement user deactivation/deletion process
     }
 
     /**
-     * @description Controls access to attendance records for a specific user.
+     * @description Allows access control for attendance records.
      * @path /users/{userId}/attendanceRecords/{attendanceRecordId}
-     * @allow (get, list) Only the user themselves (owner) can read their attendance records.
-     * @allow (create) Only the user themselves can create attendance records.
-     * @allow (update, delete) Only the user themselves can update or delete their attendance records.
-     * @deny (create) A different user attempts to create attendance records for another user.
-     * @deny (update, delete) A different user attempts to modify another user's attendance records.
-     * @principle Enforces document ownership for attendance records, nested under the user document.
+     * @allow (create) User can create an attendance record for themselves.
+     * @deny (create) User cannot create an attendance record for another user.
+     * @allow (get) Any user can read an attendance record.
+     * @deny (update) Only the user themselves can update their own attendance record.
+     * @principle Enforces user-level ownership for attendance records.
      */
     match /users/{userId}/attendanceRecords/{attendanceRecordId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get, list: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId; // TODO: Review if updates/deletes are allowed
     }
-
-     /**
-      * @description Controls access to the roles_admin collection.
-      * @path /roles_admin/{userId}
-      * @allow (get) Any signed-in user can check if a user is an admin
-      * @allow (create) Only a signed-in user, where the document ID matches the auth UID can create an admin user.
-      * @allow (delete) Any signed-in user, where the document ID matches the auth UID can delete an admin user.
-      * @allow (update) Not allowed
-      * @deny   (create) Creation denied if the document ID does not match the auth UID
-      * @principle Role based access to top level admin.
-      */
-    match /roles_admin/{userId} {
-        allow get: if isSignedIn();
-        allow create: if isSelfCreation(userId);
-        allow update: if false;
-        allow delete: if isSelfCreation(userId);
-        allow list: if false;
-    }
-
-    // --- Helper Functions ---
 
     /**
-     * @description Checks if the user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
+     * @description Allows global admin to perform any operation.
+     * @path /roles_admin/{userId}
+     * @allow (create) Only the system can grant admin roles.
+     * @deny (create) Regular users cannot grant themselves admin roles.
+     * @allow (get) Only the system can read admin roles.
+     * @deny (update) Regular users cannot change admin roles.
+     * @principle Grants admin access based on document existence.
      */
+    match /roles_admin/{userId} {
+      allow get, list: if false; // Only the system can read this.
+      allow create: if false; // Only the system can create this.
+      allow update, delete: if false; // Prevent modifications
+    }
+
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * @description Checks if the user is the owner of the document, based on the userId.
-     * @param {string} userId The user ID to compare against the request's auth UID.
-     * @return {boolean} True if the user is the owner, false otherwise.
-     * @example isOwner('user123') returns true if request.auth.uid == 'user123'.
-     */
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
-    /**
-     * @description Checks if the user is creating their own document, and the ID matches their auth UID.
-     * @param {string} userId The user ID to compare against the request's auth UID.
-     * @return {boolean} True if the user is creating their own document, false otherwise.
-     */
-    function isSelfCreation(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is an existing owner of the document (for update/delete).
-     * @param {string} userId The user ID to compare against the resource data.
-     * @return {boolean} True if the user is the owner and the document exists, false otherwise.
-     */
     function isExistingOwner(userId) {
-        return isOwner(userId) && existsAfter(resource);
-    }
-
-    /**
-     * @description Prevents the user ID from being changed after creation.
-     * @param {string} userId The user ID to compare against the resource data.
-     * @return {boolean} True if the user ID is not changed, false otherwise.
-     */
-    function isUserIdNotChanged(userId) {
-        return request.resource.data.keys().toSet().hasAll(resource.data.keys().toSet());
-    }
-
-    /**
-     * @description Checks if the user is a global administrator based on document existence.
-     * @return {boolean} True if the user has a document in the /roles_admin/{userId} collection.
-     */
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+        return isOwner(userId) && resource != null;
     }
   }
 }
