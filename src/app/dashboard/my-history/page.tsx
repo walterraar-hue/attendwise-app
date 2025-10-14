@@ -26,7 +26,7 @@ import {
   AlertDialogAction,
   AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
-import { Camera, MapPin, Wand2, LogIn, LogOut, ArrowRight, VideoOff, Loader2 } from 'lucide-react';
+import { Camera, MapPin, Wand2, LogIn, LogOut, ArrowRight, VideoOff, Loader2, RefreshCw } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -125,6 +125,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
   const [location, setLocation] = useState<{latitude: number, longitude: number, accuracy: number} | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     // Reset state when dialog is opened/closed or record changes
@@ -134,6 +135,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         setLocation(null);
         setLocationError(null);
         setIsLocating(false);
+        setRetryCount(0);
         if (stream) stream.getTracks().forEach(track => track.stop());
         setStream(null);
     }
@@ -179,7 +181,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
       );
     }
     return () => stopWatching();
-  }, [isOpen, step, location]);
+  }, [isOpen, step, location, retryCount]);
 
   useEffect(() => {
     async function setupCamera() {
@@ -214,6 +216,10 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
     }
   };
 
+  const handleRetryLocation = () => {
+    setRetryCount(count => count + 1);
+  };
+  
   const handleSubmit = async () => {
     if (!user || !firestore || !record || !capturedImage || !location) {
         toast({ variant: "destructive", title: "Faltan datos" });
@@ -265,9 +271,16 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
                             {!isLocating && locationError && !locationError.startsWith('Mejorando') && <p className="text-sm text-destructive">{locationError}</p>}
                         </div>
                     </div>
-                     <Button className="w-full" onClick={() => setStep(2)} disabled={!location || isLocating}>
-                        Siguiente <ArrowRight className="ml-2" />
-                    </Button>
+                     {locationError && !locationError.startsWith('Mejorando') ? (
+                       <Button className="w-full" onClick={handleRetryLocation} variant="outline">
+                         <RefreshCw className="mr-2 h-4 w-4" />
+                         Reintentar Ubicación
+                       </Button>
+                     ) : (
+                       <Button className="w-full" onClick={() => setStep(2)} disabled={!location || isLocating}>
+                            Siguiente <ArrowRight className="ml-2" />
+                       </Button>
+                     )}
                 </div>
             )}
             
