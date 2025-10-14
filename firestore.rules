@@ -1,25 +1,90 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a strict user-ownership model for personal data and allows company-level access to company information.
+ * @description This ruleset enforces a strict user-ownership model for attendance records and company-based access control for work centers.
  *
  * Data Structure:
- * - /companies/{companyId}: Stores company-level information, accessible with company ID.
- * - /companies/{companyId}/workCenters/{workCenterId}: Stores work centers for specific companies.
- * - /users/{userId}: Stores user profiles, accessible only by the user themselves.
- * - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records for each user, accessible only by the user.
+ * - /companies/{companyId}: Stores company information.
+ * - /companies/{companyId}/workCenters/{workCenterId}: Stores work centers for companies.
+ * - /users/{userId}: Stores user information.
+ * - /users/{userId}/attendanceRecords/{attendanceRecordId}: Stores attendance records for each user.
  *
  * Key Security Decisions:
- * - User data is strictly private and accessible only to the authenticated user.
- * - Company data is accessible to company members (not yet fully implemented in this version).
- * - Listing of users and attendance records is allowed only for the owner.
- * - Denormalization is used to simplify security rules and avoid costly `get()` operations.  Specifically, user documents include their `companyId`.
+ * - Users can only list and access their own attendance records.
+ * - Users can only create their own user document, and cannot modify it after creation.
+ * - Work centers are accessible to company members only.
+ * - Listing of users collection is disallowed.
+ *
+ * Denormalization for Authorization:
+ * - User documents include 'companyId' to simplify company-based access control for work centers.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Defines a function to check if the current user is signed in.
+     * @description Allows access to company documents based on the company ID.
+     * @path /companies/{companyId}
+     * @allow (get) Any authenticated user can read a company document.
+     * @deny (create, update, delete) Only authenticated users can access company documents.
+     * @principle Enforces company-level access control.
+     */
+    match /companies/{companyId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Allows access to work centers within a specific company.
+     * @path /companies/{companyId}/workCenters/{workCenterId}
+     * @allow (get, list) Any authenticated user can read or list work centers within a company.
+     * @deny (create, update, delete) Only authenticated users can access work centers documents.
+     * @principle Enforces company-level access control for work centers.
+     */
+    match /companies/{companyId}/workCenters/{workCenterId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Allows users to create their own user document, and restricts modifications.
+     * @path /users/{userId}
+     * @allow (create) Allows a user to create their own document if the user ID matches the authenticated user's ID.
+     * @allow (get) Allows a user to read their own document if the user ID matches the authenticated user's ID.
+     * @deny (list) Listing users is not allowed
+     * @allow (update)  Allows the user to update their own document
+     * @deny (delete)  Delete is disallowed
+     * @principle Enforces user-ownership for user documents and prevents unauthorized modifications.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isOwner(userId) && resource.data.id == request.resource.data.id;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Allows users to manage their own attendance records.
+     * @path /users/{userId}/attendanceRecords/{attendanceRecordId}
+     * @allow (list) Allows a user to list their own attendance records if the user ID matches the authenticated user's ID.
+     * @allow (create) Allows a user to create a new attendance record if the user ID matches the authenticated user's ID.
+     * @allow (get) Allows a user to get their own attendance record if the user ID matches the authenticated user's ID.
+     * @allow (update, delete) Allows the user to update or delete an existing attendance record they own.
+     * @deny Requests that do not match the user ID.
+     * @principle Enforces user-ownership for attendance records.
+     */
+    match /users/{userId}/attendanceRecords/{attendanceRecordId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(userId) && resource.data.userId == request.resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    // --- Helper Functions ---
+
+    /**
+     * @description Checks if the user is signed in.
      * @returns {boolean} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
@@ -27,89 +92,23 @@ service cloud.firestore {
     }
 
     /**
-     * @description Defines a function to check if the current user is the owner of the resource.
-     * @param {string} userId - The user ID to compare against the authenticated user's ID.
-     * @returns {boolean} True if the user is the owner, false otherwise.
+     * @description Checks if the user ID matches the authenticated user's ID.
+     * @param {string} userId The user ID to check.
+     * @returns {boolean} True if the user ID matches the authenticated user's ID, false otherwise.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Defines a function to check if the current user is the owner of the resource and it already exists.
-     * @param {string} userId - The user ID to compare against the authenticated user's ID.
-     * @returns {boolean} True if the user is the owner and the resource exists, false otherwise.
+     * @description Checks if the user is the owner of the existing document.
+     *              This function combines the ownership check with the existence check,
+     *              preventing accidental operations on non-existent documents.
+     * @param {string} userId The user ID to check.
+     * @returns {boolean} True if the user is the owner of the existing document, false otherwise.
      */
     function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-
-    /**
-     * @description Rules for the /companies/{companyId} collection.
-     * @path /companies/{companyId}
-     * @allow (get) - Any signed-in user can get a company document.
-     * @allow (create) - No one can create a company document (handled by backend).
-     * @deny (update) - No one can update a company document (handled by backend).
-     * @deny (delete) - No one can delete a company document (handled by backend).
-     * @principle Allows read access to company information.
-     */
-    match /companies/{companyId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Rules for the /companies/{companyId}/workCenters/{workCenterId} collection.
-     * @path /companies/{companyId}/workCenters/{workCenterId}
-     * @allow (get) - Any signed-in user can get a workCenter document.
-     * @allow (create) - No one can create a workCenter document (handled by backend).
-     * @deny (update) - No one can update a workCenter document (handled by backend).
-     * @deny (delete) - No one can delete a workCenter document (handled by backend).
-     * @principle Allows read access to workCenter information.
-     */
-    match /companies/{companyId}/workCenters/{workCenterId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description Rules for the /users/{userId} collection.
-     * @path /users/{userId}
-     * @allow (get) - Only the user themselves can read their own profile.
-     * @allow (create) - A user can create their own profile (self-registration). The 'id' must match their auth UID.
-     * @allow (update) - Only the user themselves can update their profile.
-     * @allow (delete) - Only the user themselves can delete their profile.
-     * @principle Enforces user-ownership for profile data.
-     */
-    match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description Rules for the /users/{userId}/attendanceRecords/{attendanceRecordId} collection.
-     * @path /users/{userId}/attendanceRecords/{attendanceRecordId}
-     * @allow (get) - Only the user themselves can read their own attendance records.
-     * @allow (create) - Only the user themselves can create their own attendance records.
-     * @deny (update) - Only the user themselves can update their own attendance records.
-     * @deny (delete) - Only the user themselves can delete their own attendance records.
-     * @principle Enforces user-ownership for attendance records.
-     */
-    match /users/{userId}/attendanceRecords/{attendanceRecordId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+        return isOwner(userId) && resource != null;
     }
   }
 }
