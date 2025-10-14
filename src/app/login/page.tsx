@@ -2,7 +2,6 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import Logo from '@/components/logo';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,9 +14,10 @@ import { useAuth } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { Separator } from '@/components/ui/separator';
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email("Por favor, introduce un email válido."),
   password: z.string().min(1, "La contraseña es requerida"),
 });
 
@@ -73,21 +73,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-        <div className="absolute left-4 top-4">
-            <Button asChild variant="ghost">
-                <Link href="/">
-                    <ArrowLeft className="mr-2 size-4" />
-                    Volver
-                </Link>
-            </Button>
-        </div>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md">
-        <Card className="shadow-lg">
-          <CardHeader className="items-center text-center">
-            <Logo className="text-primary" logoTextClassName="text-foreground" />
-            <CardTitle className="font-headline text-2xl">Iniciar Sesión</CardTitle>
-            <CardDescription>Ingresa a tu cuenta de Serlogint Attend.</CardDescription>
+        <Card className="shadow-xl border-t-4 border-primary">
+          <CardHeader className="items-center text-center space-y-4">
+            <Logo className="text-primary" showSubtitle={true} logoTextClassName="text-foreground" />
+            <div className="w-full">
+              <CardTitle className="font-headline text-2xl">Bienvenido de Nuevo</CardTitle>
+              <CardDescription className="mt-1">Ingresa tus credenciales para acceder a tu cuenta</CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -110,7 +104,12 @@ export default function LoginPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Contraseña</FormLabel>
+                       <div className="flex justify-between items-center">
+                          <FormLabel>Contraseña</FormLabel>
+                          <Button asChild variant="link" className="p-0 h-auto text-xs">
+                             <Link href="#">¿Olvidaste tu contraseña?</Link>
+                          </Button>
+                       </div>
                       <FormControl>
                         <Input type="password" placeholder="••••••••" {...field} />
                       </FormControl>
@@ -124,10 +123,24 @@ export default function LoginPage() {
               </form>
             </Form>
           </CardContent>
-           <CardFooter className="justify-center">
-             <p className="text-xs text-muted-foreground">
-               &copy; {new Date().getFullYear()} Serlogint Attend. All rights reserved.
-             </p>
+           <CardFooter className="flex-col items-start text-sm space-y-4">
+            <Separator />
+            <div className="w-full text-center">
+                <p className="text-muted-foreground">
+                    ¿No tienes una cuenta?{' '}
+                    <Button variant="link" asChild className="p-0 h-auto">
+                        <Link href="/register/admin">Crear una compañía</Link>
+                    </Button>
+                </p>
+            </div>
+            <div className="w-full text-center">
+                <p className="text-muted-foreground">
+                    ¿Fuiste invitado?{' '}
+                    <Button variant="link" asChild className="p-0 h-auto">
+                        <Link href="/register/member">Regístrate aquí</Link>
+                    </Button>
+                </p>
+            </div>
           </CardFooter>
         </Card>
       </div>
