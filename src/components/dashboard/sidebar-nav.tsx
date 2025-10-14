@@ -1,8 +1,9 @@
+
 'use client';
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, Settings, LogOut, Timer, ClipboardCheck, History, CalendarDays, TrendingUp, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Timer, ClipboardCheck, History, CalendarDays, TrendingUp, ClipboardList, BarChartHorizontal } from 'lucide-react';
 import {
   SidebarHeader,
   SidebarContent,
@@ -14,13 +15,57 @@ import {
 import { Separator } from '@/components/ui/separator';
 import Logo from '../logo';
 import { Badge } from '../ui/badge';
+import { useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { useUser } from '@/firebase';
+import { useMemo } from 'react';
+
+const navItemsByRole = {
+    'Global Admin': [
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/dashboard/register-attendance', icon: ClipboardCheck, label: 'Registrar Asistencia' },
+      { href: '/dashboard/my-history', icon: History, label: 'Mi Historial' },
+      { href: '/dashboard/team-management', icon: Users, label: 'Gestión de Equipo' },
+      { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
+    ],
+    'CEO': [
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/dashboard/gm-indicators', icon: BarChartHorizontal, label: 'Indicadores' },
+      { href: '/dashboard/team-management', icon: Users, label: 'Gestión de Equipo' },
+    ],
+    'Operations Manager': [
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/dashboard/om-indicators', icon: BarChartHorizontal, label: 'Indicadores' },
+      { href: '/dashboard/team-management', icon: Users, label: 'Gestión de Equipo' },
+      { href: '/dashboard/register-attendance', icon: ClipboardCheck, label: 'Registrar Asistencia' },
+    ],
+    'Miembro': [
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/dashboard/register-attendance', icon: ClipboardCheck, label: 'Registrar Asistencia' },
+      { href: '/dashboard/my-history', icon: History, label: 'Mi Historial' },
+    ],
+    'Manager': [] // Default empty state
+};
 
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const isActive = (path: string) => pathname === path;
-  const role = 'admin'; // Show all links
+  const auth = useAuth();
+  const router = useRouter();
+  const { user } = useUser();
+  // In a real app, you would get the user's role from your authentication data
+  const userRole = 'Global Admin'; // Placeholder
+  const navItems = useMemo(() => navItemsByRole[userRole] || navItemsByRole['Miembro'], [userRole]);
 
+  const handleLogout = async () => {
+    if (!auth) return;
+    await signOut(auth);
+    router.push('/login');
+  };
+
+  const isActive = (path: string) => pathname === path;
+  
   return (
     <>
       <SidebarHeader className="p-4 hidden md:flex">
@@ -30,124 +75,29 @@ export function SidebarNav() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive('/dashboard')}
-              tooltip="Dashboard"
-            >
-              <Link href={`/dashboard`}>
-                <LayoutDashboard />
-                <span>Dashboard</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-              <SidebarMenuButton
-              asChild
-              isActive={isActive('/dashboard/gm-indicators')}
-              tooltip="Indicadores Gerente General"
-              >
-              <Link href={`/dashboard/gm-indicators`}>
-                  <TrendingUp />
-                  <span>Indicadores Gerente General</span>
-              </Link>
-              </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-              <SidebarMenuButton
-              asChild
-              isActive={isActive('/dashboard/om-indicators')}
-              tooltip="Indicadores Gerente Op."
-              >
-              <Link href={`/dashboard/om-indicators`}>
-                  <TrendingUp />
-                  <span>Indicadores Gerente Op.</span>
-              </Link>
-              </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive('/dashboard/registro')}
-              tooltip="Registro"
-            >
-              <Link href={`/dashboard/registro`}>
-                <ClipboardList />
-                <span>Registro</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive('/dashboard/register-attendance')}
-              tooltip="Registrar Asistencia"
-            >
-              <Link href={`/dashboard/register-attendance`}>
-                <ClipboardCheck />
-                <span>Registrar Asistencia</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive('/dashboard/my-history')}
-              tooltip="Mi Historial"
-            >
-              <Link href={`/dashboard/my-history`}>
-                <History />
-                <span>Mi Historial</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive('/dashboard/attendance')}
-              tooltip="Asistencia"
-            >
-              <Link href={`/dashboard/attendance`}>
-                <CalendarDays />
-                <span>Asistencia</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={isActive('/dashboard/team-management')}
-              tooltip="Gestión de Equipo"
-            >
-              <Link href={`/dashboard/team-management`}>
-                <Users />
-                <span>Gestión de Equipo</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton 
-              asChild 
-              isActive={isActive('/dashboard/settings')}
-              tooltip="Configuración">
-              <Link href={`/dashboard/settings`}>
-                <Settings />
-                <span>Configuración</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {navItems.map((item) => (
+             <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                asChild
+                isActive={isActive(item.href)}
+                tooltip={item.label}
+                >
+                <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                </Link>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-4">
         <Separator className="my-2" />
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Logout">
-              <Link href="/">
+            <SidebarMenuButton onClick={handleLogout} tooltip="Logout">
                 <LogOut />
                 <span>Logout</span>
-              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { ReactNode } from "react";
@@ -40,8 +41,8 @@ function DashboardHeader() {
         <PanelLeft className="h-5 w-5" />
         <span className="sr-only">Toggle Sidebar</span>
       </Button>
-      <div className="hidden md:block">
-        <Logo logoTextClassName="text-primary-foreground" />
+       <div className="hidden md:block">
+        <Logo showSubtitle={false} showIcon={false} logoTextClassName="text-primary-foreground" />
       </div>
       <div className="ml-auto flex items-center gap-4">
         <UserNav user={userProps} />
@@ -67,20 +68,22 @@ export default function DashboardLayout({
 
   if (isUserLoading || !user) {
     // You can show a loading spinner here
-    return <div>Loading...</div>;
+    return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
 
   return (
     <SidebarProvider>
-      <Sidebar>
-        <SidebarNav />
-      </Sidebar>
-      <SidebarInset>
         <div className="flex h-full flex-col">
            <DashboardHeader />
-          {children}
+            <div className="flex flex-1">
+                <Sidebar>
+                    <SidebarNav />
+                </Sidebar>
+                <SidebarInset>
+                    {children}
+                </SidebarInset>
+            </div>
         </div>
-      </SidebarInset>
     </SidebarProvider>
   );
 }
