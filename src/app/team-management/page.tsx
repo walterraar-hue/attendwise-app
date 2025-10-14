@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import Header from "@/components/dashboard/header";
@@ -70,7 +71,6 @@ function PlanUsageCard({ company, users }: { company: any; users: User[] }) {
         { name: 'Global Admin', icon: <UserIcon className="size-5 text-red-500" />, displayName: 'Global Admin' },
         { name: 'CEO', icon: <Crown className="size-5 text-yellow-500" />, displayName: 'CEO' },
         { name: 'Operations Manager', icon: <Star className="size-5 text-blue-500" />, displayName: 'Admin de Operaciones' },
-        { name: 'Manager', icon: <UserCog className="size-5 text-indigo-500" />, displayName: 'Manager' },
         { name: 'Miembro', icon: <Users className="size-5 text-green-500" />, displayName: 'Miembros' },
     ];
 
@@ -98,7 +98,7 @@ function PlanUsageCard({ company, users }: { company: any; users: User[] }) {
             return acc + role.limit;
         }, 0);
 
-        const currentUsedSlots = users.filter(u => u.role === 'Miembro' || u.role === 'Manager').length;
+        const currentUsedSlots = users.filter(u => u.role === 'Miembro').length;
         
         return { roleDetails: roles, totalMemberLimit: totalLimit, usedSlots: currentUsedSlots };
     }, [company, users]);
