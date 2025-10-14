@@ -151,7 +151,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         }
 
         const locationTimeout = setTimeout(() => {
-            if (!location) {
+            if (isLocating) { // Check if we are still locating
                 setLocationError("Se agotó el tiempo para obtener la ubicación.");
                 setIsLocating(false);
             }
@@ -179,17 +179,17 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
                 setLocationError(message);
                 setIsLocating(false);
             },
-            { enableHighAccuracy: true, timeout: LOCATION_TIMEOUT_MS, maximumAge: 0 }
+            { enableHighAccuracy: true, timeout: LOCATION_TIMEOUT_MS - 2000, maximumAge: 0 }
         );
     }
-  }, [isOpen, step, retryCount]);
+  }, [isOpen, step, retryCount, isLocating]);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
 
     async function setupCamera() {
       if (isOpen && step === 2 && !capturedImage) {
-        setHasCameraPermission(null);
+        setHasCameraPermission(true);
         try {
           stream = await navigator.mediaDevices.getUserMedia({ video: true });
           if (videoRef.current) {
@@ -210,6 +210,9 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
     };
   }, [isOpen, step, capturedImage, toast]);
 
@@ -223,7 +226,6 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
         canvas.getContext('2d')?.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
         setCapturedImage(canvas.toDataURL('image/png'));
         
-        // Stop the camera stream after capturing the image
         if (videoRef.current && videoRef.current.srcObject) {
             const stream = videoRef.current.srcObject as MediaStream;
             stream.getTracks().forEach(track => track.stop());
@@ -233,7 +235,9 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
   };
 
   const handleRetryLocation = () => {
-    setRetryCount(count => count + 1);
+    if (!isLocating) {
+      setRetryCount(count => count + 1);
+    }
   };
   
   const handleSubmit = async () => {
@@ -288,7 +292,7 @@ function CheckOutDialog({ record, isOpen, onClose }: { record: AttendanceRecord 
                         </div>
                     </div>
                      {!isLocating && locationError ? (
-                       <Button className="w-full" onClick={handleRetryLocation} variant="outline" disabled={isLocating}>
+                       <Button className="w-full" onClick={handleRetryLocation} variant="outline">
                          <RefreshCw className="mr-2 h-4 w-4" />
                          Reintentar Ubicación
                        </Button>
@@ -367,9 +371,10 @@ export default function MyHistoryPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Entrada</TableHead>
-                            <TableHead>Salida</TableHead>
+                            <TableHead className="w-[180px]">Fecha</TableHead>
+                            <TableHead>Hora Citado (Entrada)</TableHead>
+                            <TableHead>Hora Registro (Entrada)</TableHead>
+                            <TableHead>Hora Registro (Salida)</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
@@ -384,11 +389,13 @@ export default function MyHistoryPage() {
                             </TableCell>
                             <TableCell>
                                 <div className="font-medium">{record.appointmentTime}</div>
-                                <div className="text-sm text-muted-foreground">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
+                            </TableCell>
+                             <TableCell>
+                                <div className="font-medium">{format(record.checkInTimestamp.toDate(), "p", { locale: es })}</div>
                             </TableCell>
                             <TableCell>
                                 {record.checkOutTimestamp ? (
-                                    <div className="text-sm">{format(record.checkOutTimestamp.toDate(), "p", { locale: es })}</div>
+                                    <div className="font-medium">{format(record.checkOutTimestamp.toDate(), "p", { locale: es })}</div>
                                 ) : (
                                     <Badge variant="outline">Pendiente</Badge>
                                 )}
@@ -413,7 +420,7 @@ export default function MyHistoryPage() {
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={5} className="h-24 text-center">
+                            <TableCell colSpan={6} className="h-24 text-center">
                                 No tienes registros de asistencia todavía.
                             </TableCell>
                         </TableRow>
