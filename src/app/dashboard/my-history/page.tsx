@@ -142,7 +142,8 @@ export default function MyHistoryPage() {
                     <TableHeader>
                         <TableRow>
                         <TableHead>Fecha</TableHead>
-                        <TableHead>Hora de Entrada</TableHead>
+                        <TableHead>Hora Citado</TableHead>
+                        <TableHead>Hora Registro</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
@@ -159,6 +160,7 @@ export default function MyHistoryPage() {
                                 {format(record.timestamp.toDate(), "yyyy", { locale: es })}
                             </div>
                             </TableCell>
+                            <TableCell>{record.appointmentTime}</TableCell>
                             <TableCell>
                                 {format(record.timestamp.toDate(), "p", { locale: es })}
                             </TableCell>
@@ -174,7 +176,7 @@ export default function MyHistoryPage() {
                         ))
                     ) : (
                         <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center">
+                        <TableCell colSpan={5} className="h-24 text-center">
                             No tienes registros de asistencia todavía.
                         </TableCell>
                         </TableRow>
