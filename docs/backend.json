@@ -98,13 +98,38 @@
         "type": {
           "type": "string",
           "description": "Type of attendance event (e.g., Check-in, Check-out)."
+        },
+        "workCenterId": {
+          "type": "string",
+          "description": "The ID of the work center for the record."
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "accuracy": { "type": "number" }
+          }
+        },
+        "imageUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "aiAnalysis": {
+          "type": ["string", "null"]
+        },
+        "appointmentTime": {
+          "type": "string"
         }
       },
       "required": [
         "id",
         "userId",
         "timestamp",
-        "type"
+        "type",
+        "workCenterId",
+        "location",
+        "imageUrl"
       ]
     },
     "WorkCenter": {

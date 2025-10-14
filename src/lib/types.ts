@@ -1,4 +1,5 @@
 
+
 export type UserRole = 'Global Admin' | 'Operations Manager' | 'CEO' | 'Manager' | 'Miembro';
 
 export type UserStatus = 'active' | 'pending' | 'inactive';
@@ -32,12 +33,19 @@ export interface Company {
 export interface AttendanceRecord {
   id: string;
   userId: string;
-  userName: string;
-  date: string;
-  checkIn: string | null;
-  checkOut: string | null;
-  status: 'Present' | 'Absent' | 'Late' | 'On Leave';
+  timestamp: any; // Firestore Timestamp
+  type: 'check-in' | 'check-out';
+  workCenterId: string;
+  location: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+  };
+  imageUrl: string;
+  aiAnalysis: string | null;
+  appointmentTime: string;
 }
+
 
 export interface WorkCenter {
   id: string;

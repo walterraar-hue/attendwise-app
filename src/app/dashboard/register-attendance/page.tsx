@@ -16,7 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { punctualityAnalysis } from '@/ai/flows/punctuality-analysis';
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { User as AppUser, WorkCenter } from '@/lib/types';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import {
@@ -28,7 +28,7 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { ToastAction } from '@/components/ui/toast';
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { cn } from '@/lib/utils';
 
 
@@ -37,7 +37,8 @@ const LOCATION_TIMEOUT_MS = 30000; // 30 seconds
 
 type SubmissionDetails = {
     appointmentTime: string;
-    workCenter: string;
+    workCenterId: string;
+    workCenterName: string;
     location: { latitude: number, longitude: number, accuracy: number } | null;
     image: string | null;
     aiAnalysis: string | null;
@@ -209,7 +210,7 @@ export default function RegisterAttendancePage() {
 
   // Form state
   const [appointmentTime, setAppointmentTime] = useState('');
-  const [workCenter, setWorkCenter] = useState('');
+  const [workCenterId, setWorkCenterId] = useState('');
   
   // Geolocation state
   const [location, setLocation] = useState<{latitude: number, longitude: number, accuracy: number} | null>(null);
@@ -319,7 +320,7 @@ export default function RegisterAttendancePage() {
 
 
   const handleNextStep = () => {
-    if (!appointmentTime || !workCenter) {
+    if (!appointmentTime || !workCenterId) {
         toast({
             variant: "destructive",
             title: "Campos Incompletos",
@@ -341,7 +342,7 @@ export default function RegisterAttendancePage() {
   const resetForm = () => {
     setStep(1);
     setAppointmentTime('');
-    setWorkCenter('');
+    setWorkCenterId('');
     setCapturedImage(null);
     setHasCameraPermission(null);
     setLocation(null);
@@ -422,15 +423,32 @@ export default function RegisterAttendancePage() {
   };
 
   const handleSubmit = async () => {
+    if (!user || !firestore || !capturedImage || !location || !workCenterId) {
+        toast({
+            variant: "destructive",
+            title: "Faltan Datos",
+            description: "Asegúrate de que la ubicación, la imagen y el centro de trabajo estén completos."
+        });
+        return;
+    }
     setIsSubmitting(true);
-    let aiAnalysis = null;
+    let aiAnalysis: string | null = null;
+    let imageUrl = '';
 
     try {
+        // 1. Upload image to Firebase Storage
+        const storage = getStorage();
+        const imagePath = `attendances/${user.uid}/${new Date().toISOString()}.png`;
+        const imageStorageRef = storageRef(storage, imagePath);
+        
+        await uploadString(imageStorageRef, capturedImage, 'data_url');
+        imageUrl = await getDownloadURL(imageStorageRef);
+
+        // 2. (Optional) AI Punctuality Analysis
         const now = new Date();
         const [hours, minutes] = appointmentTime.split(':').map(Number);
         const appointmentDateTime = new Date();
         appointmentDateTime.setHours(hours, minutes, 0, 0);
-
         const diffMinutes = (appointmentDateTime.getTime() - now.getTime()) / 60000;
 
         if (diffMinutes > 0) {
@@ -438,11 +456,31 @@ export default function RegisterAttendancePage() {
             aiAnalysis = result.analysis;
         }
 
-        const submissionData = {
+        // 3. Save record to Firestore
+        const attendanceCollectionRef = collection(firestore, `users/${user.uid}/attendanceRecords`);
+        await addDoc(attendanceCollectionRef, {
+            userId: user.uid,
+            timestamp: serverTimestamp(),
+            type: 'check-in',
+            workCenterId: workCenterId,
+            location: {
+                latitude: location.latitude,
+                longitude: location.longitude,
+                accuracy: location.accuracy,
+            },
+            imageUrl: imageUrl,
+            aiAnalysis: aiAnalysis,
+            appointmentTime: appointmentTime,
+        });
+        
+        // 4. Show success dialog
+        const selectedWorkCenter = workCenters?.find(wc => wc.id === workCenterId);
+        const submissionData: SubmissionDetails = {
             appointmentTime,
-            workCenter,
+            workCenterId,
+            workCenterName: selectedWorkCenter?.name || 'N/A',
             location,
-            image: capturedImage,
+            image: capturedImage, // Show local captured image in dialog
             aiAnalysis,
         };
         setLastSubmission(submissionData);
@@ -539,7 +577,7 @@ export default function RegisterAttendancePage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="work-center">Centro de Trabajo</Label>
-                            <Select value={workCenter} onValueChange={setWorkCenter} disabled={isLoadingWorkCenters}>
+                            <Select value={workCenterId} onValueChange={setWorkCenterId} disabled={isLoadingWorkCenters}>
                             <SelectTrigger id="work-center">
                                 <SelectValue placeholder={isLoadingWorkCenters ? "Cargando centros..." : "Selecciona un centro"} />
                             </SelectTrigger>
@@ -659,4 +697,3 @@ export default function RegisterAttendancePage() {
       </div>
   );
 }
-
