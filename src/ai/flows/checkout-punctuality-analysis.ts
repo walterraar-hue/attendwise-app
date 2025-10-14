@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -32,7 +33,7 @@ export async function checkoutPunctualityAnalysis(
 const prompt = ai.definePrompt({
   name: 'checkoutPunctualityAnalysisPrompt',
   input: {schema: CheckoutPunctualityAnalysisInputSchema},
-  output: {schema: CheckoutPuncularityAnalysisOutputSchema},
+  output: {schema: CheckoutPunctualityAnalysisOutputSchema},
   prompt: `You are a professional HR assistant.
 
 An employee has checked out from their shift. The difference between their scheduled end time and their actual checkout time is {{{minutesDifference}}} minutes.
