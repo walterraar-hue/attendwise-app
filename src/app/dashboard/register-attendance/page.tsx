@@ -8,9 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, VideoOff, ArrowLeft } from 'lucide-react';
+import { Camera, VideoOff, ArrowLeft, Loader2, MapPin, CheckCircle, AlertTriangleIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
 
@@ -35,6 +34,56 @@ export default function RegisterAttendancePage() {
   // Form state
   const [appointmentTime, setAppointmentTime] = useState('');
   const [workCenter, setWorkCenter] = useState('');
+  
+  // Geolocation state
+  const [location, setLocation] = useState<{latitude: number, longitude: number, accuracy: number} | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+
+  // Effect for Geolocation
+  useEffect(() => {
+    if (step === 1 && !location && !locationError) {
+      setIsLocating(true);
+      if (!navigator.geolocation) {
+        setLocationError("La geolocalización no es soportada por tu navegador.");
+        setIsLocating(false);
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          if (accuracy > 100) {
+              setLocationError(`La precisión de la ubicación (${accuracy.toFixed(0)}m) es muy baja. Intenta de nuevo en un lugar con mejor señal.`);
+              setLocation(null);
+          } else {
+              setLocation({ latitude, longitude, accuracy });
+              setLocationError(null);
+          }
+          setIsLocating(false);
+        },
+        (error) => {
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              setLocationError("Permiso de ubicación denegado. Es necesario para registrar la asistencia.");
+              break;
+            case error.POSITION_UNAVAILABLE:
+              setLocationError("Información de ubicación no disponible.");
+              break;
+            case error.TIMEOUT:
+              setLocationError("Se agotó el tiempo para obtener la ubicación.");
+              break;
+            default:
+              setLocationError("Ocurrió un error desconocido al obtener la ubicación.");
+              break;
+          }
+          setIsLocating(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+  }, [step, location, locationError]);
+
 
   const handleNextStep = () => {
     if (!appointmentTime || !workCenter) {
@@ -42,6 +91,14 @@ export default function RegisterAttendancePage() {
             variant: "destructive",
             title: "Campos Incompletos",
             description: "Por favor, completa la hora y el centro de trabajo.",
+        });
+        return;
+    }
+     if (!location) {
+        toast({
+            variant: "destructive",
+            title: "Ubicación Requerida",
+            description: "No se ha podido obtener tu ubicación. Por favor, verifica los permisos e inténtalo de nuevo.",
         });
         return;
     }
@@ -121,7 +178,13 @@ export default function RegisterAttendancePage() {
 
   const handleSubmit = () => {
     // Here you would handle the submission of the data,
-    // including appointmentTime, workCenter, and capturedImage
+    // including appointmentTime, workCenter, capturedImage, and location
+    console.log({
+        appointmentTime,
+        workCenter,
+        location,
+        image: capturedImage ? 'Image captured' : 'No Image'
+    })
     toast({
       title: '¡Registro Enviado!',
       description: 'Tu asistencia ha sido registrada correctamente.',
@@ -132,6 +195,8 @@ export default function RegisterAttendancePage() {
     setWorkCenter('');
     setCapturedImage(null);
     setHasCameraPermission(null);
+    setLocation(null);
+    setLocationError(null);
   };
 
   return (
@@ -143,7 +208,7 @@ export default function RegisterAttendancePage() {
             <CardTitle>Registro de Ingreso</CardTitle>
             <CardDescription>
                 {step === 1 
-                ? "Completa los detalles de tu cita para continuar." 
+                ? "Completa los detalles de tu cita y verifica tu ubicación." 
                 : "Verifica tu asistencia con una foto en las instalaciones."}
             </CardDescription>
           </CardHeader>
@@ -168,7 +233,40 @@ export default function RegisterAttendancePage() {
                         </SelectContent>
                         </Select>
                     </div>
-                    <Button className="w-full" onClick={handleNextStep}>Siguiente</Button>
+
+                    <Separator />
+
+                    <div className="space-y-2">
+                      <Label>Verificación de Ubicación</Label>
+                       <div className="flex items-center gap-3 rounded-md border p-3 bg-muted/50">
+                          <MapPin className="h-5 w-5 text-muted-foreground" />
+                          <div className="flex-1">
+                              {isLocating && (
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                      <Loader2 className="animate-spin h-4 w-4" />
+                                      <span>Obteniendo ubicación...</span>
+                                  </div>
+                              )}
+                              {locationError && (
+                                  <div className="flex items-center gap-2 text-sm text-destructive">
+                                      <AlertTriangleIcon className="h-4 w-4" />
+                                      <span>{locationError}</span>
+                                  </div>
+                              )}
+                              {location && (
+                                  <div className="flex items-center gap-2 text-sm text-green-600">
+                                      <CheckCircle className="h-4 w-4" />
+                                      <span>Ubicación obtenida con éxito (precisión: {location.accuracy.toFixed(0)}m).</span>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                    </div>
+
+
+                    <Button className="w-full" onClick={handleNextStep} disabled={isLocating || !!locationError || !location}>
+                      {isLocating ? 'Verificando...' : 'Siguiente'}
+                    </Button>
                 </div>
             )}
 
@@ -176,7 +274,7 @@ export default function RegisterAttendancePage() {
                 <div className="space-y-4">
                     <div className="aspect-video w-full bg-muted rounded-md flex items-center justify-center overflow-hidden">
                       {capturedImage ? (
-                          <Image src={capturedImage} alt="Captured attendance" layout="fill" objectFit="contain" />
+                          <Image src={capturedImage} alt="Captured attendance" fill objectFit="contain" />
                       ) : (
                           <div className="relative w-full h-full flex items-center justify-center">
                               <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
@@ -231,3 +329,6 @@ export default function RegisterAttendancePage() {
     </div>
   );
 }
+
+
+    
