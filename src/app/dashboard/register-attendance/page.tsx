@@ -23,7 +23,7 @@ const workCenters = [
 ];
 
 const ACCEPTABLE_ACCURACY_METERS = 100;
-const LOCATION_TIMEOUT_MS = 20000; // 20 seconds
+const LOCATION_TIMEOUT_MS = 30000; // 30 seconds
 
 export default function RegisterAttendancePage() {
   const { toast } = useToast();
@@ -118,7 +118,7 @@ export default function RegisterAttendancePage() {
           },
           { 
             enableHighAccuracy: true, 
-            timeout: 5000, // Timeout for each individual update attempt
+            timeout: 10000, // Timeout for each individual update attempt
             maximumAge: 0 
           }
       );
@@ -442,6 +442,8 @@ export default function RegisterAttendancePage() {
       </div>
     </div>
   );
+
+    
 
     
 
