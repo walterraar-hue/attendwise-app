@@ -23,6 +23,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useFirestore } from "@/firebase";
 import { doc, updateDoc, writeBatch } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 
 const statusVariant: Record<UserStatus, "default" | "secondary" | "destructive"> = {
   active: "default",
@@ -41,8 +43,9 @@ const availableRoles: UserRole[] = ['CEO', 'Operations Manager', 'Miembro'];
 export function MembersTable({ data, company, users }: { data: User[], company: Company | null, users: User[] }) {
   const firestore = useFirestore();
   const { toast } = useToast();
+  const [confirmation, setConfirmation] = useState<{ user: User; newRole: UserRole } | null>(null);
 
-  const handleChangeRole = async (user: User, newRole: UserRole) => {
+  const handleInitiateChangeRole = (user: User, newRole: UserRole) => {
     if (!firestore || !user.id || !company) return;
     if (user.role === newRole) return;
 
@@ -54,7 +57,7 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
         });
         return;
     }
-
+    
     const roleLimit = company.roleLimits?.[newRole] ?? 0;
     if (roleLimit === 0) {
         toast({
@@ -76,17 +79,25 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
             return;
         }
     }
-   
+    
+    setConfirmation({ user, newRole });
+  }
+
+  const executeRoleChange = async () => {
+    if (!confirmation || !firestore || !company) return;
+
+    const { user, newRole } = confirmation;
+    
     try {
       const userDocRef = doc(firestore, 'users', user.id);
       await updateDoc(userDocRef, { 
         role: newRole,
-        isRoleLocked: true // Lock the role after the first change
+        isRoleLocked: true 
       });
       
       toast({
         title: "Rol Asignado Exitosamente",
-        description: `El rol de ${user.name} ha sido establecido como ${newRole}. Una vez asignado, no podrá ser modificado.`,
+        description: `El rol de ${user.name} ha sido establecido como ${newRole}.`,
       });
 
     } catch (error) {
@@ -96,11 +107,14 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
         title: "Error",
         description: "No se pudo cambiar el rol. Por favor, inténtalo de nuevo.",
       });
+    } finally {
+        setConfirmation(null);
     }
   };
 
 
   return (
+    <>
     <div className="rounded-md border bg-card">
       <Table>
         <TableHeader>
@@ -161,7 +175,7 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
                              {availableRoles.map(role => (
                                 <DropdownMenuItem 
                                     key={role} 
-                                    onClick={() => handleChangeRole(user, role)}
+                                    onClick={() => handleInitiateChangeRole(user, role)}
                                     disabled={user.role === role}
                                 >
                                     {role}
@@ -182,5 +196,23 @@ export function MembersTable({ data, company, users }: { data: User[], company: 
         </TableBody>
       </Table>
     </div>
+    {confirmation && (
+        <AlertDialog open={!!confirmation} onOpenChange={() => setConfirmation(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Estás a punto de asignar el rol de <span className="font-bold">{confirmation.newRole}</span> a <span className="font-bold">{confirmation.user.name}</span>.
+                        Esta acción es permanente y no se podrá deshacer.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setConfirmation(null)}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={executeRoleChange}>Confirmar Asignación</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )}
+    </>
   );
 }
