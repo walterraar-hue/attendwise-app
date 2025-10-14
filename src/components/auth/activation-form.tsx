@@ -31,7 +31,7 @@ const memberSchema = z.object({
   email: z.string().email("Por favor, introduce un email válido."),
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres."),
   companyCode: z.string().min(1, "El código de compañía es requerido."),
-  role: z.enum(['Miembro', 'Manager'], { required_error: "Debes seleccionar un rol." }),
+  role: z.enum(['Miembro', 'Manager', 'Operations Manager', 'CEO'], { required_error: "Debes seleccionar un rol." }),
 });
 
 const adminSchema = z.object({
@@ -80,7 +80,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
       const batch = writeBatch(firestore);
       
-      const newCompanyRef = doc(firestore, 'companies', user.uid); 
+      const newCompanyRef = doc(collection(firestore, 'companies')); 
 
       const roleLimits: Record<string, number> = { 'Global Admin': 0, 'CEO': 0, 'Operations Manager': 0, 'Manager': 0, 'Miembro': 0 };
 
@@ -90,6 +90,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
       } else if (plan === 'pro') {
           roleLimits['Global Admin'] = 1;
           roleLimits['Operations Manager'] = 1;
+          roleLimits['Manager'] = 2;
           roleLimits['Miembro'] = 80;
       } else if (plan === 'premium') {
           roleLimits['Global Admin'] = 1;
@@ -151,6 +152,11 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
     let userCredential;
     try {
+        // 1. Create user in Auth first to get a UID
+        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
+
+        // 2. Now that user is authenticated, validate company code and slots
         const companyRef = doc(firestore, "companies", values.companyCode);
         const companySnap = await getDoc(companyRef);
 
@@ -161,19 +167,16 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         const companyData = companySnap.data();
         const roleLimit = companyData.roleLimits?.[values.role] ?? 0;
 
-        if (roleLimit !== -1) { // -1 means unlimited
-            const usersQuery = query(collection(firestore, 'users'), where('companyId', '==', values.companyCode), where('role', '==', values.role));
-            const usersSnap = await getDocs(usersQuery);
-            const currentRoleCount = usersSnap.size;
+        // Check against users collection for the chosen role
+        const usersQuery = query(collection(firestore, 'users'), where('companyId', '==', values.companyCode), where('role', '==', values.role));
+        const usersSnap = await getDocs(usersQuery);
+        const currentRoleCount = usersSnap.size;
 
-            if (currentRoleCount >= roleLimit) {
-                throw new Error(`No hay cupos disponibles para el rol de ${values.role}. Por favor, contacta a tu administrador.`);
-            }
+        if (roleLimit !== -1 && currentRoleCount >= roleLimit) {
+             throw new Error(`No hay cupos disponibles para el rol de ${values.role}. Por favor, contacta a tu administrador.`);
         }
-      
-        userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
         
+        // 3. If validation passes, commit user data to Firestore
         const batch = writeBatch(firestore);
 
         const userDocRef = doc(firestore, "users", user.uid);
@@ -189,7 +192,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         });
         
         // Only increment general 'usedSlots' if the role is a billable slot.
-        if (values.role === 'Miembro' || values.role === 'Manager') {
+        // Let's assume CEO and Operations Manager are also billable slots like Manager and Miembro
+        if (['Miembro', 'Manager', 'Operations Manager', 'CEO'].includes(values.role)) {
             batch.update(companyRef, {
                 usedSlots: increment(1)
             });
@@ -204,6 +208,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         router.push('/dashboard');
 
     } catch (error: any) {
+        // If user was created in Auth but Firestore operations failed, delete the Auth user to allow retry
         if (userCredential) {
             await deleteUser(userCredential.user).catch(delErr => {
               console.error("Cleanup Error: Failed to delete orphaned auth user.", delErr);
@@ -301,6 +306,8 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
                     <SelectContent>
                       <SelectItem value="Miembro">Miembro del Equipo</SelectItem>
                       <SelectItem value="Manager">Manager</SelectItem>
+                      <SelectItem value="Operations Manager">Admin de Operaciones</SelectItem>
+                      <SelectItem value="CEO">CEO</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
