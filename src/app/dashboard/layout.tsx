@@ -31,8 +31,8 @@ function DashboardHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center border-b bg-primary text-primary-foreground">
-       <div className="container mx-auto flex h-16 items-center gap-4 px-4 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center border-b bg-primary text-primary-foreground">
+       <div className="container mx-auto flex h-full items-center gap-4 px-4 sm:px-6">
             <Button
                 size="icon"
                 variant="ghost"
