@@ -29,7 +29,7 @@ export default function Logo({
         </svg>
       )}
       <div className="flex flex-col">
-        {showTitle && <span className={cn("text-xl font-bold text-primary", logoTextClassName)}>Serlogint Attend</span>}
+        {showTitle && <span className={cn("text-xl font-bold text-primary", logoTextClassName)}>Serlogint-Attend</span>}
         {showSubtitle && <span className={cn("text-xs -mt-1", "opacity-80")}>Developed by Core-AI</span>}
       </div>
     </div>
