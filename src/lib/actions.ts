@@ -7,17 +7,11 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
-const firebaseAdminConfig = {
-  project_id: firebaseConfig.projectId, // Use the projectId from the client config
-  client_email: process.env.FIREBASE_CLIENT_EMAIL,
-  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-};
-
-// Initialize Firebase Admin SDK only if it hasn't been already
+// Initialize Firebase Admin SDK only if it hasn't been already.
+// By calling initializeApp() without arguments, it will use Application Default Credentials
+// which are automatically available in the App Hosting environment.
 if (!getApps().length) {
-  initializeApp({
-    credential: cert(firebaseAdminConfig),
-  });
+  initializeApp();
 }
 
 
@@ -41,40 +35,37 @@ export async function validateAndCreateUser(values: unknown) {
   const { name, email, companyCode, password, role } = parsed.data;
 
   try {
-    // Step 1: Validate Company and check for available slots
     const companyRef = adminDb.collection('companies').doc(companyCode);
     const companySnap = await companyRef.get();
 
     if (!companySnap.exists) {
-      return { success: false, error: 'El código de la empresa no es válido.' };
+        return { success: false, error: 'El código de la empresa no es válido.' };
     }
-
+    
     const companyData = companySnap.data()!;
     const roleLimits = companyData.roleLimits || {};
     const roleLimit = roleLimits[role] ?? 0;
-
-    const usersInRoleQuery = await adminDb
-      .collection('users')
-      .where('companyId', '==', companyCode)
-      .where('role', '==', role)
-      .get();
     
+    const usersInRoleQuery = await adminDb
+        .collection('users')
+        .where('companyId', '==', companyCode)
+        .where('role', '==', role)
+        .get();
+
     const usersInRole = usersInRoleQuery.size;
 
     if (roleLimit !== -1 && usersInRole >= roleLimit) {
-      return { success: false, error: `No hay más cupos disponibles para el rol '${role}'.` };
+        return { success: false, error: `No hay más cupos disponibles para el rol '${role}'.` };
     }
 
-    // Step 2: Create Firebase Auth user
     const userRecord = await adminAuth.createUser({
-      email,
-      password,
-      displayName: name,
+        email,
+        password,
+        displayName: name,
     });
 
-    // Step 3: Create user document and update company atomically
     const userDocRef = adminDb.collection('users').doc(userRecord.uid);
-    
+
     await adminDb.runTransaction(async (transaction) => {
         transaction.set(userDocRef, {
             id: userRecord.uid,
