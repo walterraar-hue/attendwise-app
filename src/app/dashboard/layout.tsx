@@ -42,7 +42,7 @@ function DashboardHeader() {
                 <PanelLeft className="h-5 w-5" />
                 <span className="sr-only">Toggle Sidebar</span>
             </Button>
-            <Logo showIcon={false} logoTextClassName="text-primary-foreground" />
+            <Logo logoTextClassName="text-primary-foreground" />
             <div className="ml-auto flex items-center gap-4">
                 <UserNav user={userProps} />
             </div>
