@@ -31,22 +31,24 @@ function DashboardHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-primary px-4 text-primary-foreground sm:px-6">
-       <Button
-        size="icon"
-        variant="ghost"
-        className="md:hidden -ml-2 hover:bg-primary-foreground/20 hover:text-primary-foreground"
-        onClick={toggleSidebar}
-      >
-        <PanelLeft className="h-5 w-5" />
-        <span className="sr-only">Toggle Sidebar</span>
-      </Button>
-       <div className="hidden md:block">
-        <Logo showSubtitle={false} showIcon={false} logoTextClassName="text-primary-foreground" />
-      </div>
-      <div className="ml-auto flex items-center gap-4">
-        <UserNav user={userProps} />
-      </div>
+    <header className="sticky top-0 z-30 w-full border-b bg-primary text-primary-foreground">
+       <div className="flex h-16 items-center gap-4 px-4 sm:px-6">
+            <Button
+                size="icon"
+                variant="ghost"
+                className="md:hidden -ml-2 hover:bg-primary-foreground/20 hover:text-primary-foreground"
+                onClick={toggleSidebar}
+            >
+                <PanelLeft className="h-5 w-5" />
+                <span className="sr-only">Toggle Sidebar</span>
+            </Button>
+            <div className="hidden md:block">
+                <Logo showSubtitle={false} showIcon={false} logoTextClassName="text-primary-foreground" />
+            </div>
+            <div className="ml-auto flex items-center gap-4">
+                <UserNav user={userProps} />
+            </div>
+       </div>
     </header>
   );
 }
