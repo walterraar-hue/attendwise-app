@@ -72,7 +72,7 @@ export function SidebarNav({ userRole }: { userRole: UserRole }) {
   
   return (
     <>
-      <SidebarHeader className="p-4 hidden md:flex">
+      <SidebarHeader className="p-4 flex">
         <div className="flex items-center gap-2">
             <Logo showIcon={false} />
         </div>
