@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from "@/components/dashboard/header";
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
@@ -15,11 +15,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, PlusCircle, Trash2, Building } from 'lucide-react';
+import { Loader2, PlusCircle, Trash2, Building, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useRouter } from 'next/navigation';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 
 const workCenterSchema = z.object({
@@ -191,19 +193,42 @@ function WorkCentersList({ workCenters, companyId, isLoading }: { workCenters: W
 export default function SettingsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
+  const router = useRouter();
 
   const userDocRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return doc(firestore, 'users', user.uid);
   }, [user, firestore]);
-  const { data: userData } = useDoc<AppUser>(userDocRef);
+  const { data: userData, isLoading: isUserLoading } = useDoc<AppUser>(userDocRef);
+  
   const companyId = userData?.companyId;
 
   const workCentersQuery = useMemoFirebase(() => {
       if (!companyId || !firestore) return null;
       return collection(firestore, `companies/${companyId}/workCenters`);
   }, [companyId, firestore]);
-  const { data: workCenters, isLoading } = useCollection<WorkCenter>(workCentersQuery);
+  const { data: workCenters, isLoading: isLoadingWorkCenters } = useCollection<WorkCenter>(workCentersQuery);
+
+  useEffect(() => {
+    if (!isUserLoading && userData && userData.role !== 'Global Admin') {
+      router.replace('/dashboard');
+    }
+  }, [userData, isUserLoading, router]);
+
+  if (isUserLoading || !userData || userData.role !== 'Global Admin') {
+    return (
+        <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+            <div className="max-w-4xl mx-auto">
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                        No tienes permiso para acceder a esta página. Redirigiendo...
+                    </AlertDescription>
+                </Alert>
+            </div>
+        </div>
+    );
+  }
 
 
   return (
@@ -215,7 +240,7 @@ export default function SettingsPage() {
         {companyId ? (
           <>
             <WorkCenterForm companyId={companyId} />
-            <WorkCentersList workCenters={workCenters} companyId={companyId} isLoading={isLoading} />
+            <WorkCentersList workCenters={workCenters} companyId={companyId} isLoading={isLoadingWorkCenters} />
           </>
         ) : (
           <p>Cargando información de la compañía...</p>

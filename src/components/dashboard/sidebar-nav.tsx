@@ -15,11 +15,14 @@ import {
 import { Separator } from '@/components/ui/separator';
 import Logo from '../logo';
 import { Badge } from '../ui/badge';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { useMemo } from 'react';
+import type { User as AppUser } from '@/lib/types';
+import { doc } from 'firebase/firestore';
+import { useDoc } from '@/firebase/firestore/use-doc';
 
 const navItemsByRole = {
     'Global Admin': [
@@ -54,8 +57,15 @@ export function SidebarNav() {
   const auth = useAuth();
   const router = useRouter();
   const { user } = useUser();
-  // In a real app, you would get the user's role from your authentication data
-  const userRole = 'Global Admin'; // Placeholder
+  const firestore = useFirestore();
+
+  const userDocRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [user, firestore]);
+  const { data: userData } = useDoc<AppUser>(userDocRef);
+
+  const userRole = userData?.role || 'Miembro';
   const navItems = useMemo(() => navItemsByRole[userRole] || navItemsByRole['Miembro'], [userRole]);
 
   const handleLogout = async () => {
