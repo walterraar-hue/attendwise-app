@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@radix-ui/resolvers/zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -138,18 +138,19 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
 
   const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
-    if (!auth || !firestore) {
-      toast({ title: "Error", description: "Los servicios de Firebase no están disponibles.", variant: "destructive" });
-      setIsLoading(false);
-      return;
+    if (!auth) {
+        toast({
+            variant: "destructive",
+            title: "Error de Autenticación",
+            description: "El servicio de autenticación no está disponible.",
+        });
+        setIsLoading(false);
+        return;
     }
 
     try {
         await createUserWithEmailAndPassword(auth, values.email, values.password);
 
-        // The logic to find the pending user and activate it will now run on the login page
-        // after the user successfully signs in for the first time.
-        
         toast({
             title: "¡Cuenta Creada!",
             description: "Tu cuenta ha sido creada. Por favor, inicia sesión para activarla y unirte a tu equipo.",
