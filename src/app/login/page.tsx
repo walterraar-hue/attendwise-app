@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -10,10 +11,11 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
+import { signInWithEmailAndPassword, User as FirebaseAuthUser } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 
 
 const loginSchema = z.object({
@@ -21,9 +23,9 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-
 export default function LoginPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -35,9 +37,57 @@ export default function LoginPage() {
     },
   });
 
+  const activatePendingUser = async (authUser: FirebaseAuthUser) => {
+    // 1. Find the user document that is 'pending' and matches the email.
+    const usersRef = collection(firestore, "users");
+    const q = query(usersRef, where("email", "==", authUser.email), where("status", "==", "pending"));
+    
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+        const pendingUserDoc = querySnapshot.docs[0];
+        const companyId = pendingUserDoc.data().companyId;
+        
+        try {
+            // 2. Perform sequential writes
+            const userDocRef = doc(firestore, "users", pendingUserDoc.id);
+            // First, activate the user
+            await updateDoc(userDocRef, {
+                status: "active",
+                id: authUser.uid, // Stamp the Auth UID onto the document
+            });
+
+            // Second, increment the company's used slots
+            const companyRef = doc(firestore, 'companies', companyId);
+            await updateDoc(companyRef, {
+                usedSlots: increment(1)
+            });
+
+            toast({
+                title: "¡Cuenta Activada!",
+                description: "Tu cuenta ha sido activada correctamente."
+            });
+            
+        } catch (error: any) {
+            console.error("Error activating user:", error);
+            toast({
+                variant: "destructive",
+                title: "Error de Activación",
+                description: "No se pudo activar tu cuenta. Por favor, contacta a soporte.",
+            });
+            // Log out the user to prevent being in a weird state
+            await auth.signOut();
+            throw error; // Re-throw to stop navigation
+        }
+    }
+  };
+
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      
+      // After successful login, check and activate if pending
+      await activatePendingUser(userCredential.user);
       
       toast({
         title: "Inicio de Sesión Exitoso",

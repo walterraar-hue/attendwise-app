@@ -41,7 +41,7 @@ const adminSchema = z.object({
 });
 
 function SubmitButton({ mode, isLoading }: { mode: "admin" | "member", isLoading: boolean }) {
-  const text = mode === "admin" ? "Crear Equipo" : "Activar Cuenta";
+  const text = mode === "admin" ? "Crear Equipo" : "Crear Cuenta";
   return (
     <Button type="submit" className="w-full" disabled={isLoading}>
       {isLoading ? <Loader2 className="animate-spin" /> : text}
@@ -161,7 +161,7 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
     }
   };
 
- const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
+  const handleMemberSubmit = async (values: z.infer<typeof memberSchema>) => {
     setIsLoading(true);
     try {
       // Step 1: Find the pending user document that the admin created.
@@ -185,33 +185,13 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
         return;
       }
       
-      const pendingUserDoc = querySnapshot.docs[0];
+      // Step 2: Just create the user in Firebase Auth.
+      await createUserWithEmailAndPassword(auth, values.email, values.password);
 
-      // Step 2: Create the user in Firebase Auth.
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
-      // Step 3: Update the existing 'pending' document to 'active' and add the UID.
-      const userDocRef = doc(firestore, "users", pendingUserDoc.id);
-      
-      const batch = writeBatch(firestore);
-
-      batch.update(userDocRef, {
-          id: user.uid, // Add the auth UID to the document
-          name: values.name,
-          status: "active"
-      });
-      
-      const companyRef = doc(firestore, 'companies', values.companyCode);
-      batch.update(companyRef, {
-          usedSlots: increment(1)
-      });
-      
-      await batch.commit();
-
+      // The rest of the activation will happen on first login.
       toast({
-        title: "¡Cuenta Activada!",
-        description: "Tu cuenta ha sido activada correctamente. Por favor, inicia sesión.",
+        title: "¡Cuenta Creada!",
+        description: "Tu cuenta ha sido creada. Por favor, inicia sesión para activarla y unirte al equipo.",
       });
       router.push("/login");
 
@@ -222,20 +202,10 @@ export function ActivationForm({ mode, plan }: { mode: "admin" | "member", plan?
           title: "Correo electrónico en uso",
           description: "Este correo electrónico ya está registrado. Por favor, inicia sesión.",
         });
-      } else if (error.code && error.code.includes('permission-denied')) {
-           const permissionError = new FirestorePermissionError({
-                path: `update /users/${'pending-user-id'}`,
-                operation: 'update', 
-                requestResourceData: { 
-                    "Note": "This was an attempt to ACTIVATE a pending user document after a successful Auth creation.",
-                    "user data": { name: values.name, status: "active" },
-                }
-          });
-          errorEmitter.emit('permission-error', permissionError);
       } else {
         toast({
-          title: "Error de Activación",
-          description: error.message || "No se pudo activar la cuenta. Verifica tus datos e inténtalo de nuevo.",
+          title: "Error de Creación",
+          description: error.message || "No se pudo crear la cuenta. Verifica tus datos e inténtalo de nuevo.",
           variant: "destructive",
         });
       }
