@@ -1,56 +1,82 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Walter AI English Tutor v0.59</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Walter English AI Tutor v1.0</title>
 <style>
-:root{--bg:#06111f;--p:#0c1d31;--p2:#132b48;--line:#294966;--text:#fff;--muted:#9fbad3;--ok:#55e6ad;--warn:#ffc857;--bad:#ff7184}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif;overflow:hidden}header{height:58px;padding:9px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}h1{font-size:19px;margin:0 0 2px}.muted,small,p{color:var(--muted)}.headright{white-space:nowrap;font-size:14px}.app{height:calc(100dvh - 58px);display:grid;grid-template-columns:minmax(0,1fr) minmax(292px,330px);gap:10px;padding:10px;min-height:0}.meet,.card{border:1px solid var(--line);border-radius:16px;background:var(--p);overflow:hidden}.meet{display:grid;grid-template-rows:minmax(0,1fr) auto auto;min-height:0}.stage{min-height:0;position:relative;background:radial-gradient(circle at 50% 35%,#193a58,#030a12 68%)}#avatar{position:absolute;inset:0;overflow:hidden}#avatar canvas{width:100%!important;height:100%!important;display:block}.placeholder{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:20px}.placeholder b{font-size:24px}.tag,.state{position:absolute;top:14px;background:#071727e8;border:1px solid #456884;border-radius:14px;padding:8px 11px;backdrop-filter:blur(8px)}.tag{left:14px}.state{right:14px;border-radius:999px}.state.ok{color:var(--ok)}.state.warn{color:var(--warn)}.self{position:absolute;right:16px;bottom:78px;width:clamp(125px,14vw,180px);aspect-ratio:16/10;border:2px solid #7894b0;border-radius:14px;overflow:hidden;background:#152a42}.self video{width:100%;height:100%;object-fit:cover}.caption{position:absolute;left:5%;right:5%;bottom:14px;background:#020b15e8;border-radius:14px;padding:10px 14px;text-align:center;font-size:clamp(14px,1.15vw,18px);line-height:1.35;max-height:94px;overflow:auto}.focus{min-height:44px;padding:9px 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}.focus b{font-size:11px;letter-spacing:.08em}.controls{min-height:56px;padding:8px 10px;display:flex;gap:7px;justify-content:center;align-items:center;flex-wrap:wrap}button{border:1px solid #3a607e;background:#102944;color:#fff;border-radius:10px;padding:9px 11px;font-weight:700;cursor:pointer;font-size:13px}button:hover{filter:brightness(1.12)}button:disabled{opacity:.55}.blue{background:#175bad}.green{background:#087b59}.red{background:#8d3040}.side{min-height:0;height:100%;overflow:auto;display:flex;flex-direction:column;gap:9px;padding-right:2px}.card{padding:11px}.row{display:flex;justify-content:space-between;gap:9px;align-items:flex-start}.card h3{margin:0 0 8px;font-size:15px}.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.kpis{display:grid;grid-template-columns:1fr 1fr;gap:7px}.k{background:var(--p2);border-radius:10px;padding:8px}.k strong{display:block;font-size:21px}.progress{height:6px;background:#1c344b;border-radius:99px;overflow:hidden}.progress i{display:block;height:100%;width:0;background:#2d99ff;transition:width .2s}.log{height:min(22vh,180px);overflow:auto}.msg{background:#142e4c;border-left:3px solid #4f9aef;border-radius:8px;padding:8px;margin:6px 0;font-size:12px;line-height:1.35}.modal{position:fixed;inset:0;background:#000b;display:none;place-items:center;z-index:20;padding:16px}.modal.show{display:grid}.dialog{width:min(540px,96vw);max-height:88dvh;overflow:auto;background:#0d2035;border:1px solid #416987;border-radius:18px;padding:18px}.dialog h2{margin:0 0 8px}.dialog input{width:100%;padding:10px;margin:5px 0 11px;border:1px solid #3d607d;border-radius:10px;background:#071522;color:#fff}.note{font-size:12px;line-height:1.45}.version{display:inline-block;border:1px solid #426988;border-radius:999px;padding:3px 7px;color:#add0ef;font-size:11px}.setupok{border:1px solid #1d7b5a;background:#0b2d26;border-radius:10px;padding:10px;color:#aaf5d5;margin:10px 0}.setupwarn{border:1px solid #85691d;background:#2f2810;border-radius:10px;padding:10px;color:#ffe29a;margin:10px 0}.hidden{display:none!important}
-@media(max-width:1150px){body{overflow:auto}.app{height:auto;min-height:calc(100dvh - 58px);grid-template-columns:1fr}.meet{height:min(760px,calc(100dvh - 75px))}.side{height:auto;overflow:visible;display:grid;grid-template-columns:1fr 1fr}.log{height:180px}}
-@media(max-width:720px){header{height:auto;min-height:58px;align-items:flex-start}.headright{font-size:12px}.app{padding:6px}.meet{height:calc(100dvh - 72px);min-height:620px}.side{display:flex}.tag{max-width:64%}.tag small{font-size:11px}.caption{left:3%;right:3%;bottom:10px}.focus{font-size:13px}.controls{justify-content:flex-start;overflow-x:auto;flex-wrap:nowrap}.controls button{flex:0 0 auto}.self{width:120px;bottom:74px}.card{border-radius:14px}}
+:root{--bg:#07111f;--panel:#0d1b2c;--panel2:#11253d;--line:#29435e;--text:#f7fbff;--muted:#9fb6ce;--blue:#4f91ff;--cyan:#52d6ff;--green:#4be0a7;--warn:#ffca69;--bad:#ff7d8d;--amp:.08}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:radial-gradient(circle at 35% 20%,#102b47 0,#07111f 42%,#050b14 100%);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif;overflow:hidden}
+header{height:58px;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #1f3850;background:#07111fe8;backdrop-filter:blur(14px)}
+h1{font-size:18px;margin:0}.sub{font-size:12px;color:var(--muted);margin-top:3px}.headStats{display:flex;gap:8px;align-items:center;font-size:12px}.chip{border:1px solid #35536f;background:#0d2136;border-radius:999px;padding:5px 9px;white-space:nowrap}.chip.ok{color:var(--green);border-color:#24795d}.chip.warn{color:var(--warn);border-color:#705a27}
+.app{height:calc(100dvh - 58px);display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:10px;padding:10px;min-height:0}.call,.card{background:linear-gradient(180deg,#0c1b2e,#091522);border:1px solid var(--line);border-radius:18px;overflow:hidden}.call{display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0;position:relative}
+.stage{min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:28px}.orbWrap{position:relative;width:min(42vh,310px);aspect-ratio:1;display:grid;place-items:center}.orbHalo{position:absolute;inset:-18%;border-radius:50%;background:radial-gradient(circle,rgba(79,145,255,.26),rgba(82,214,255,.08) 35%,transparent 68%);filter:blur(22px);transform:scale(calc(1 + var(--amp)*1.4));transition:transform .08s linear}.orb{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 36% 30%,#d6f6ff 0,#7cd7ff 7%,#559cff 28%,#4f55d8 54%,#151e64 74%,#090e35 100%);box-shadow:0 0 70px rgba(82,152,255,.38),inset -28px -38px 64px rgba(3,7,30,.5);transform:scale(calc(1 + var(--amp)*.24));transition:transform .07s linear,filter .2s}.orb::after{content:"";position:absolute;inset:8%;border-radius:50%;background:radial-gradient(circle at 28% 23%,rgba(255,255,255,.6),transparent 24%);filter:blur(3px)}
+.call.speaking .orb{filter:saturate(1.22) brightness(1.09)}.call.listening .orb{filter:saturate(.98) brightness(.98)}.call.thinking .orb{animation:think 1.4s ease-in-out infinite alternate}@keyframes think{to{transform:scale(1.05)}}
+.centerLabel{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;pointer-events:none}.name{font-size:28px;font-weight:800;text-shadow:0 3px 18px #020714}.stateText{font-size:13px;color:#def4ff;margin-top:6px}.micMeter{position:absolute;bottom:58px;width:min(260px,60vw);height:6px;border-radius:999px;background:#132c44;overflow:hidden}.micMeter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#4be0a7,#52d6ff);transition:width .08s linear}
+.captions{position:absolute;left:4%;right:4%;bottom:18px;display:grid;grid-template-columns:1fr 1fr;gap:9px}.captionBox{background:#07111fe9;border:1px solid #2f506c;border-radius:14px;padding:10px 12px;min-height:54px;max-height:100px;overflow:auto;backdrop-filter:blur(12px)}.captionBox b{display:block;font-size:11px;color:#86baf0;margin-bottom:4px;letter-spacing:.04em}.captionBox span{font-size:15px;line-height:1.34}
+.controls{border-top:1px solid var(--line);padding:9px;display:flex;justify-content:center;gap:7px;align-items:center;flex-wrap:wrap;background:#091725}.btn{border:1px solid #365b79;background:#102943;color:#fff;border-radius:12px;padding:9px 12px;font-weight:700;cursor:pointer;font-size:13px}.btn:hover{filter:brightness(1.12)}.btn:disabled{opacity:.5;cursor:not-allowed}.btn.primary{background:#175fac;border-color:#3a83d7}.btn.danger{background:#8d3041;border-color:#bd5261}.btn.active{background:#0f7659;border-color:#35c796}
+.side{min-height:0;height:100%;display:flex;flex-direction:column;gap:9px;overflow:auto;padding-right:2px}.card{padding:12px}.card h3{font-size:14px;margin:0 0 8px}.muted{color:var(--muted);font-size:12px;line-height:1.45}.route{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px}.routeLine{height:7px;background:#1b3852;border-radius:99px;overflow:hidden}.routeLine i{display:block;width:22%;height:100%;background:linear-gradient(90deg,#4be0a7,#52d6ff)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:7px}.stat{background:var(--panel2);border-radius:11px;padding:9px}.stat strong{font-size:20px;display:block}.statusRow{display:flex;align-items:center;justify-content:space-between;gap:10px}.good{color:var(--green)}.warning{color:var(--warn)}.bad{color:var(--bad)}
+.repeat{display:none;border-left:4px solid var(--cyan);background:#0e2539;padding:11px;border-radius:10px;margin-top:8px}.repeat.show{display:block}.repeat .label{font-size:10px;color:#8ecbf2;font-weight:800;letter-spacing:.08em}.repeat .phrase{font-size:18px;font-weight:800;margin-top:5px}.log{height:230px;overflow:auto}.msg{padding:8px 9px;margin:6px 0;border-radius:10px;background:#102841;font-size:12px;line-height:1.35;border-left:3px solid #4f91ff}.msg.user{border-left-color:#4be0a7}.msg .who{font-weight:800;margin-bottom:3px}.footerNote{font-size:11px;color:#7996b1;margin-top:6px}
+@media(max-width:1080px){body{overflow:auto}.app{height:auto;min-height:calc(100dvh - 58px);grid-template-columns:1fr}.call{height:min(760px,calc(100dvh - 72px))}.side{height:auto;overflow:visible;display:grid;grid-template-columns:1fr 1fr}.log{height:180px}}
+@media(max-width:700px){header{height:auto;min-height:58px;gap:8px;align-items:flex-start}.headStats{flex-wrap:wrap;justify-content:flex-end}.app{padding:6px}.call{height:calc(100dvh - 72px);min-height:610px}.stage{padding:18px}.orbWrap{width:min(48vw,240px)}.captions{grid-template-columns:1fr;bottom:12px}.captionBox{min-height:48px}.side{display:flex}.controls{justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto}.btn{flex:0 0 auto}}
 </style>
 </head>
 <body>
-<header><div><h1>Walter AI English Tutor · v0.59</h1><small>Live conversation · real avatar · one-time secure setup</small></div><div class="headright"><b id="live">Ready</b> · <span id="timer">00:00</span> · Goal C1</div></header>
+<header>
+  <div><h1>Walter English AI Tutor · v1.0</h1><div class="sub">OpenAI GPT-Live · natural voice conversation · adaptive English coaching</div></div>
+  <div class="headStats"><span class="chip" id="sessionChip">Session 00:00</span><span class="chip" id="todayChip">Today 00:00</span><span class="chip warn" id="statusChip">Ready</span></div>
+</header>
 <div class="app">
-<main class="meet">
-<div class="stage">
-  <div id="avatar"></div>
-  <div class="placeholder" id="placeholder"><div><b>Emma — AI English Tutor</b><p id="placeholderText">Start class. If the secure setup is complete, Emma connects automatically.</p></div></div>
-  <div class="tag"><b>Emma</b><br><small>American English · adaptive tutor</small></div>
-  <div class="state" id="state">● Ready</div>
-  <div class="self"><video id="cam" autoplay muted playsinline></video></div>
-  <div class="caption"><b id="who">System:</b> <span id="caption">Ready.</span></div>
+  <main class="call" id="call">
+    <div class="stage">
+      <div class="orbWrap"><div class="orbHalo"></div><div class="orb"></div><div class="centerLabel"><div class="name">Emma</div><div class="stateText" id="stateText">Press Start class</div></div></div>
+      <div class="micMeter"><i id="micLevel"></i></div>
+      <div class="captions">
+        <div class="captionBox"><b>WALTER</b><span id="userCaption">Your speech will appear here.</span></div>
+        <div class="captionBox"><b>EMMA</b><span id="emmaCaption">Emma’s words will appear here.</span></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn primary" id="start">▶ Start class</button>
+      <button class="btn" id="mute">🎤 Mic</button>
+      <button class="btn active" id="captionsBtn">CC Captions</button>
+      <button class="btn" id="clear">↺ Clear transcript</button>
+      <button class="btn danger" id="end">■ End</button>
+    </div>
+  </main>
+
+  <aside class="side">
+    <section class="card">
+      <h3>Learning route</h3>
+      <div class="route"><b>A2</b><div class="routeLine"><i></i></div><b>B1</b></div>
+      <p class="muted">Goal first: solid B1. Daily target: 60 minutes. Emma adapts the difficulty while you speak.</p>
+    </section>
+
+    <section class="card">
+      <div class="statusRow"><h3 style="margin:0">Live connection</h3><b id="connectionStatus" class="warning">not started</b></div>
+      <p class="muted" id="connectionHint">One secure OpenAI API key stays on the server. The browser never receives it.</p>
+    </section>
+
+    <section class="card">
+      <h3>Today</h3>
+      <div class="stats"><div class="stat"><strong id="minutesToday">0</strong><span class="muted">minutes studied</span></div><div class="stat"><strong id="turns">0</strong><span class="muted">spoken turns</span></div></div>
+      <div class="repeat" id="repeatCard"><div class="label">REPEAT</div><div class="phrase" id="repeatPhrase"></div></div>
+    </section>
+
+    <section class="card">
+      <h3>Teaching rule</h3>
+      <p class="muted">Conversation → detect an important mistake → explain why → correct it → short repetition → transfer test → continue.</p>
+      <div class="footerNote">Emma should not correct every tiny imperfection. She prioritizes errors that matter for reaching B1.</div>
+    </section>
+
+    <section class="card">
+      <div class="statusRow"><h3 style="margin:0">Transcript</h3><span class="chip">live</span></div>
+      <div class="log" id="log"></div>
+    </section>
+  </aside>
 </div>
-<div class="focus"><b id="mode">TODAY'S FOCUS</b><span id="target">Conversation + live correction + explanation</span></div>
-<div class="controls">
-  <button class="blue" id="start">▶ Start class</button>
-  <button id="mute">🎤 Mic</button>
-  <button id="camera">📷 Camera</button>
-  <button id="settings">⚙ Setup</button>
-  <button class="red" id="end">■ End</button>
-</div>
-</main>
-<aside class="side">
-<section class="card"><h3>Live evaluation</h3><div class="kpis"><div class="k"><strong id="overall">54</strong><small>Overall /100</small></div><div class="k"><strong>61</strong><small>Pronunciation*</small></div><div class="k"><strong id="grammar">47</strong><small>Grammar</small></div><div class="k"><strong>52</strong><small>Fluency</small></div></div></section>
-<section class="card"><div class="row"><h3>Microphone</h3><b class="warn" id="micstatus">not started</b></div><p id="michint" class="note">Chrome will ask permission only when the class starts.</p></section>
-<section class="card"><div class="row"><h3>Real avatar</h3><b class="warn" id="avstatus">not connected</b></div><div class="progress"><i id="prog"></i></div><p class="note">The same audio Emma speaks is routed into the Spatius renderer for lip-sync.</p></section>
-<section class="card"><div class="row"><h3>AI tutor</h3><b class="warn" id="aistatus">not connected</b></div><p id="aihint" class="note">Gemini Live keeps conversation context and listens to your microphone audio.</p></section>
-<section class="card"><div class="row"><h3>Session transcript</h3><span class="version">live context</span></div><div class="log" id="log"></div></section>
-</aside>
-</div>
-<div class="modal" id="modal"><div class="dialog">
-  <h2>One-time setup</h2>
-  <p class="note">For normal use, API keys should live securely on the server. After they are configured in Vercel, this window will no longer ask for them and <b>Start class</b> will connect Emma automatically.</p>
-  <div id="serverReady" class="setupok hidden">✅ Secure server setup is complete. You will not be asked for API keys each session.</div>
-  <div id="serverMissing" class="setupwarn hidden">⚠ Secure server setup is incomplete. You can do a temporary test below, but the professional setup is to save the keys once in Vercel Environment Variables.</div>
-  <div id="appidWrap"><label>Spatius App ID<input id="appid" autocomplete="off" placeholder="Only needed until SPATIUS_APP_ID is configured"></label></div>
-  <div id="spatiusWrap"><label>Spatius API Key<input id="spatiuskey" type="password" autocomplete="off" placeholder="Temporary session only"></label></div>
-  <div id="geminiWrap"><label>Gemini API Key<input id="geminikey" type="password" autocomplete="off" placeholder="Temporary session only"></label></div>
-  <p class="note" id="setupmsg">Checking server configuration…</p>
-  <button class="green" id="connect">Connect Emma</button> <button id="cancel">Close</button>
-</div></div>
+<audio id="remoteAudio" autoplay></audio>
 <script type="module" src="/app.js"></script>
 </body>
 </html>
