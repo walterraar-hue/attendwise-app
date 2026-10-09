@@ -13,11 +13,7 @@ export default async function handler(req,res){
       config:{
         uses:1,
         expireTime:new Date(now+30*60*1000).toISOString(),
-        newSessionExpireTime:new Date(now+60*1000).toISOString(),
-        liveConnectConstraints:{
-          model:'gemini-3.8-live',
-          config:{responseModalities:['AUDIO']}
-        }
+        newSessionExpireTime:new Date(now+60*1000).toISOString()
       }
     })
     if(!token?.name) return res.status(502).json({error:'gemini_token_missing'})
