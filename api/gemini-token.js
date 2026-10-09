@@ -4,8 +4,8 @@ export default async function handler(req,res){
   if(req.method!=='POST') return res.status(405).json({error:'method_not_allowed'})
   try{
     const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{})
-    const apiKey=String(body.apiKey||'').trim()
-    if(!apiKey) return res.status(400).json({error:'missing_gemini_api_key'})
+    const apiKey=String(process.env.GEMINI_API_KEY||body.apiKey||'').trim()
+    if(!apiKey) return res.status(400).json({error:'missing_gemini_api_key',detail:'Configure GEMINI_API_KEY once in Vercel or provide it temporarily.'})
 
     const ai=new GoogleGenAI({apiKey})
     const now=Date.now()
