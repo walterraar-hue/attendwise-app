@@ -3,8 +3,8 @@ export default async function handler(req,res){
   if(req.method!=='POST') return res.status(405).json({error:'method_not_allowed'})
   try{
     const body=typeof req.body==='string'?JSON.parse(req.body||'{}'):(req.body||{})
-    const apiKey=String(body.apiKey||'').trim()
-    if(!apiKey)return res.status(400).json({error:'missing_api_key'})
+    const apiKey=String(process.env.SPATIUS_API_KEY||body.apiKey||'').trim()
+    if(!apiKey)return res.status(400).json({error:'missing_spatius_api_key',detail:'Configure SPATIUS_API_KEY once in Vercel or provide it temporarily.'})
     const expireAt=Math.floor(Date.now()/1000)+55*60
     const r=await fetch('https://console.us-west.spatius.ai/v1/console/session-tokens',{method:'POST',headers:{'X-Api-Key':apiKey,'Content-Type':'application/json'},body:JSON.stringify({expireAt,modelVersion:''})})
     const raw=await r.text();let data={};try{data=JSON.parse(raw)}catch{data={raw}}
