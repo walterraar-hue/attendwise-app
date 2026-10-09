@@ -1,163 +1,433 @@
-import { AvatarSDK, AvatarManager, AvatarView, DrivingServiceMode, LogLevel } from '@spatius/avatarkit'
-import { GoogleGenAI, Modality } from '@google/genai'
+const $ = (id) => document.getElementById(id)
 
-const $ = id => document.getElementById(id)
-const safe = s => String(s ?? '').replace(/[<>&]/g, '')
+let pc = null
+let dc = null
+let micStream = null
+let audioCtx = null
+let micAnalyser = null
+let remoteAnalyser = null
+let rafId = null
+let timerId = null
+let running = false
+let muted = false
+let captionsOn = true
+let sessionSeconds = 0
+let dailySeconds = 0
+let turns = 0
+let sessionStarted = false
+let lastVisualState = ''
 
-let avatarController=null, avatarView=null, avatarReady=false, sdkReady=false
-let liveSession=null, aiReady=false, audioContext=null, source=null, processor=null, micStream=null
-let classStarted=false, muted=false, seconds=0, timer=null, turnHadAudio=false
-let lastUserTranscript='', lastModelTranscript='', runtimeConfig={appId:'',spatiusConfigured:false,geminiConfigured:false}
-
-const SYSTEM_PROMPT=`
-You are Emma, Walter's private English tutor. Your job is to take him from approximately A1-A2 to B1 first and eventually C1. He studies about one hour a day, Monday to Friday.
-
-PERSONALITY
-- Warm, patient, extroverted, intelligent, persistent and natural.
-- Speak clearly and a little slower than normal native speed unless Walter is doing well.
-- Treat this as a real one-to-one video lesson, not a chatbot.
-
-TEACHING RULES
-- Maintain a real conversation and react specifically to what Walter just said. Never use canned or repetitive filler responses.
-- Let Walter finish a short idea. Interrupt only for errors that are important, recurring, or block progress.
-- When an important error occurs, do ALL of this before moving on: briefly stop him; quote the wrong fragment; give the correct form; explain in simple Spanish WHY the original is wrong; explain WHY the correct form is correct; ask him to repeat a SHORT chunk; listen and do not continue until acceptable; then test transfer with a different example.
-- If Walter asks why, explain the reason instead of merely correcting him.
-- For pronunciation, slow down and model the word only when you can infer the issue confidently from live audio. Do not pretend to have phoneme-level certainty when you do not.
-- Use English for conversation and short Spanish explanations for grammar when helpful.
-- Prefer useful situations from Walter's real work: logistics, warehouses, containers, safety, quality, teams, operations and meetings.
-- Remember what has already been practiced during the session and revisit recurring errors.
-- Praise only when earned and say specifically what improved.
-
-CONVERSATION FLOW
-- Ask one question at a time.
-- Keep spoken turns concise so Walter gets most of the speaking time.
-- If Walter answers your question, respond to the content and move forward naturally.
-- Do not repeat the same question unless he did not answer it.
-- When class starts, greet Walter briefly and ask him to describe part of his workday.
-`
-
-function log(who,text){$('log').insertAdjacentHTML('afterbegin',`<div class="msg"><b>${safe(who)}</b><br>${safe(text)}</div>`)}
-function caption(who,text){$('who').textContent=`${who}:`;$('caption').textContent=text;if(text?.trim())log(who,text)}
-function setState(text,kind=''){$('state').textContent=`● ${text}`;$('state').className=`state ${kind}`}
-function setAIStatus(text,kind='warn'){$('aistatus').textContent=text;$('aistatus').className=kind}
-function b64ToBytes(base64){const bin=atob(base64),out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out}
-function bytesToB64(bytes){let bin='';for(let i=0;i<bytes.length;i+=0x8000)bin+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(bin)}
-function floatToPcm16(samples){const buffer=new ArrayBuffer(samples.length*2),view=new DataView(buffer);for(let i=0;i<samples.length;i++){const s=Math.max(-1,Math.min(1,samples[i]));view.setInt16(i*2,s<0?s*0x8000:s*0x7fff,true)}return new Uint8Array(buffer)}
-function resampleMono(input,inputRate,outputRate=16000){if(inputRate===outputRate)return input;const outLen=Math.max(1,Math.round(input.length*outputRate/inputRate)),out=new Float32Array(outLen),ratio=(input.length-1)/Math.max(1,outLen-1);for(let i=0;i<outLen;i++){const pos=i*ratio,idx=Math.floor(pos),next=Math.min(idx+1,input.length-1),f=pos-idx;out[i]=input[idx]*(1-f)+input[next]*f}return out}
-
-async function loadRuntimeConfig(){
-  try{
-    const r=await fetch('/api/runtime-config',{cache:'no-store'});runtimeConfig=await r.json()
-    if(runtimeConfig.appId){$('appid').value=runtimeConfig.appId;localStorage.setItem('spatiusAppId',runtimeConfig.appId)}
-  }catch{runtimeConfig={appId:'',spatiusConfigured:false,geminiConfigured:false}}
-  renderSetupStatus()
-  return runtimeConfig
+const transcriptState = {
+  Walter: { text: '', start: null, end: null, el: null },
+  Emma: { text: '', start: null, end: null, el: null },
 }
 
-function renderSetupStatus(){
-  const appReady=Boolean(runtimeConfig.appId||localStorage.getItem('spatiusAppId'))
-  const allReady=appReady&&runtimeConfig.spatiusConfigured&&runtimeConfig.geminiConfigured
-  $('serverReady').classList.toggle('hidden',!allReady)
-  $('serverMissing').classList.toggle('hidden',allReady)
-  $('appidWrap').classList.toggle('hidden',Boolean(runtimeConfig.appId))
-  $('spatiusWrap').classList.toggle('hidden',runtimeConfig.spatiusConfigured)
-  $('geminiWrap').classList.toggle('hidden',runtimeConfig.geminiConfigured)
-  $('setupmsg').textContent=allReady?'Secure setup ready. Close this window and press Start class.':'Missing items can be entered temporarily here, but save them once in Vercel for the best experience.'
+const storageKeys = {
+  recent: 'walterTutor.recentTranscript.v1',
+  studyPrefix: 'walterTutor.study.',
 }
 
-async function enableMicrophonePermission(){
-  try{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(t=>t.stop());$('micstatus').textContent='permission granted';$('micstatus').className='ok';$('michint').textContent='Ready for the live lesson.';return true}
-  catch{$('micstatus').textContent='blocked';$('micstatus').className='bad';$('michint').textContent='Chrome blocked the microphone. Site settings → Microphone → Allow, then reload.';return false}
+function dayKey() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
-async function startMicStreaming(){
-  if(!liveSession||muted||micStream)return
-  micStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}})
-  audioContext=new AudioContext();source=audioContext.createMediaStreamSource(micStream);processor=audioContext.createScriptProcessor(4096,1,1)
-  processor.onaudioprocess=e=>{if(!liveSession||muted)return;const input=e.inputBuffer.getChannelData(0);e.outputBuffer.getChannelData(0).fill(0);const pcm=floatToPcm16(resampleMono(input,audioContext.sampleRate,16000));if(pcm.length)liveSession.sendRealtimeInput({audio:{data:bytesToB64(pcm),mimeType:'audio/pcm;rate=16000'}})}
-  source.connect(processor);processor.connect(audioContext.destination);$('micstatus').textContent='listening';$('micstatus').className='ok';setState('Listening','ok')
+function secondsKey() { return storageKeys.studyPrefix + dayKey() }
+
+function loadStudyTime() {
+  dailySeconds = Number(localStorage.getItem(secondsKey()) || 0)
+  renderTime()
 }
 
-async function stopMicStreaming(){try{processor?.disconnect()}catch{}try{source?.disconnect()}catch{}micStream?.getTracks().forEach(t=>t.stop());try{await audioContext?.close()}catch{}micStream=null;processor=null;source=null;audioContext=null}
-async function camera(){try{$('cam').srcObject=await navigator.mediaDevices.getUserMedia({video:true})}catch{log('System','Camera permission not available.')}}
-
-async function connectAvatar(appId,temporaryKey=''){
-  $('avstatus').textContent='connecting';$('avstatus').className='warn';$('prog').style.width='8%'
-  const tr=await fetch('/api/spatius-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(temporaryKey?{apiKey:temporaryKey}:{})})
-  const td=await tr.json();if(!tr.ok)throw new Error(typeof td.detail==='string'?td.detail:JSON.stringify(td.detail||td.error))
-  if(!sdkReady){await AvatarSDK.initialize(appId,{drivingServiceMode:DrivingServiceMode.direct,audioFormat:{channelCount:1,sampleRate:24000},logLevel:LogLevel.error});sdkReady=true}
-  AvatarSDK.setSessionToken(td.sessionToken);$('prog').style.width='20%'
-  const av=await AvatarManager.shared.load('aed008e4-8ddf-41aa-b5b2-5d7321dd4165',info=>{$('prog').style.width=`${Math.max(20,Math.round((info.progress||0)*75)+20)}%`})
-  $('avatar').innerHTML='';avatarView=new AvatarView(av,$('avatar'));avatarController=avatarView.controller
-  avatarView.onFirstRendering=()=>{avatarReady=true;$('placeholder').style.display='none';$('avstatus').textContent='ready';$('avstatus').className='ok';$('prog').style.width='100%'}
-  avatarController.onConnectionState=state=>{if(String(state)==='connected'){$('avstatus').textContent=avatarReady?'ready':'connected';$('avstatus').className='ok'}}
-  avatarController.onConversationState=state=>{if(String(state).toLowerCase().includes('speaking'))setState('Speaking','ok')}
-  avatarController.onError=e=>{const msg=e?.message||String(e);log('Avatar',msg);if(!avatarReady){$('avstatus').textContent='error';$('avstatus').className='bad'}}
-  await avatarController.initializeAudioContext();await avatarController.start()
+function fmt(sec) {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
 }
 
-async function connectGemini(temporaryKey=''){
-  setAIStatus('connecting','warn');$('aihint').textContent='Creating a short-lived Gemini Live session…'
-  const r=await fetch('/api/gemini-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(temporaryKey?{apiKey:temporaryKey}:{})})
-  const data=await r.json();if(!r.ok)throw new Error(data.detail||data.error||'Could not create Gemini Live token')
-  const ai=new GoogleGenAI({apiKey:data.token,httpOptions:{apiVersion:'v1beta'}})
-  liveSession=await ai.live.connect({model:'gemini-3.8-live',config:{responseModalities:[Modality.AUDIO],systemInstruction:SYSTEM_PROMPT,inputAudioTranscription:{},outputAudioTranscription:{},speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:'Aoede'}}},realtimeInputConfig:{automaticActivityDetection:{disabled:false,prefixPaddingMs:180,silenceDurationMs:900}}},callbacks:{
-    onopen:()=>{aiReady=true;setAIStatus('live','ok');$('aihint').textContent='Live conversational brain connected. No canned response loop.'},
-    onmessage:msg=>handleGeminiMessage(msg),
-    onerror:e=>{setAIStatus('error','bad');$('aihint').textContent=e?.message||'Gemini Live error.';log('AI',e?.message||String(e))},
-    onclose:e=>{aiReady=false;setAIStatus('closed','bad');$('aihint').textContent=e?.reason||'Gemini Live session closed.'}
-  }})
+function renderTime() {
+  $('sessionChip').textContent = `Session ${fmt(sessionSeconds)}`
+  $('todayChip').textContent = `Today ${fmt(dailySeconds)}`
+  $('minutesToday').textContent = Math.floor(dailySeconds / 60)
+  $('turns').textContent = turns
 }
 
-function handleGeminiMessage(msg){
-  const content=msg.serverContent;if(!content)return
-  if(content.inputTranscription?.text){const t=content.inputTranscription.text.trim();if(t&&t!==lastUserTranscript){lastUserTranscript=t;caption('Walter',t);setState('Thinking','warn')}}
-  if(content.outputTranscription?.text){const t=content.outputTranscription.text.trim();if(t){lastModelTranscript=t;$('who').textContent='Emma:';$('caption').textContent=t}}
-  if(content.modelTurn?.parts){for(const part of content.modelTurn.parts){const audio=part.inlineData;if(!audio?.data)continue;const pcm=b64ToBytes(audio.data);if(!pcm.length)continue;turnHadAudio=true;setState('Speaking','ok');if(avatarController&&avatarReady)avatarController.send(pcm.buffer.slice(pcm.byteOffset,pcm.byteOffset+pcm.byteLength),false);else playPcm24k(pcm)}}
-  if(content.interrupted){turnHadAudio=false;try{avatarController?.interrupt()}catch{}setState('Listening','ok')}
-  if(content.turnComplete){if(turnHadAudio&&avatarController&&avatarReady)avatarController.send(new ArrayBuffer(0),true);turnHadAudio=false;if(lastModelTranscript){log('Emma',lastModelTranscript);lastModelTranscript=''}setState(muted?'Muted':'Listening',muted?'warn':'ok')}
+function startTimer() {
+  stopTimer()
+  timerId = setInterval(() => {
+    if (!running) return
+    sessionSeconds += 1
+    dailySeconds += 1
+    localStorage.setItem(secondsKey(), String(dailySeconds))
+    renderTime()
+  }, 1000)
 }
 
-let fallbackAudioCtx=null,playbackCursor=0
-function playPcm24k(bytes){if(!fallbackAudioCtx)fallbackAudioCtx=new AudioContext({sampleRate:24000});const samples=new Float32Array(bytes.length/2),dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);for(let i=0;i<samples.length;i++)samples[i]=dv.getInt16(i*2,true)/32768;const buf=fallbackAudioCtx.createBuffer(1,samples.length,24000);buf.copyToChannel(samples,0);const src=fallbackAudioCtx.createBufferSource();src.buffer=buf;src.connect(fallbackAudioCtx.destination);const now=fallbackAudioCtx.currentTime;playbackCursor=Math.max(playbackCursor,now+.03);src.start(playbackCursor);playbackCursor+=buf.duration}
-
-async function connectAll(){
-  await loadRuntimeConfig()
-  const appId=(runtimeConfig.appId||$('appid').value.trim()||localStorage.getItem('spatiusAppId')||'').trim()
-  const spatiusKey=runtimeConfig.spatiusConfigured?'':$('spatiuskey').value.trim()
-  const geminiKey=runtimeConfig.geminiConfigured?'':$('geminikey').value.trim()
-  if(!appId||(!runtimeConfig.spatiusConfigured&&!spatiusKey)||(!runtimeConfig.geminiConfigured&&!geminiKey)){$('setupmsg').textContent='Complete the missing setup items first.';return false}
-  $('connect').disabled=true;$('setupmsg').textContent='Connecting Emma…'
-  try{localStorage.setItem('spatiusAppId',appId);if(!avatarReady)await connectAvatar(appId,spatiusKey);if(!aiReady)await connectGemini(geminiKey);$('spatiuskey').value='';$('geminikey').value='';$('modal').classList.remove('show');caption('System','Emma is connected. Press Start class when you are ready.');return true}
-  catch(e){console.error(e);$('setupmsg').textContent=e?.message||String(e);log('System',`Connection failed: ${e?.message||e}`);return false}
-  finally{$('connect').disabled=false}
+function stopTimer() {
+  if (timerId) clearInterval(timerId)
+  timerId = null
 }
 
-async function ensureConnected(){
-  if(avatarReady&&aiReady)return true
-  await loadRuntimeConfig()
-  const appId=runtimeConfig.appId||localStorage.getItem('spatiusAppId')||''
-  if(appId&&runtimeConfig.spatiusConfigured&&runtimeConfig.geminiConfigured){return connectAll()}
-  $('modal').classList.add('show');renderSetupStatus();return false
+function setConnection(status, cls='warning', hint='') {
+  $('connectionStatus').textContent = status
+  $('connectionStatus').className = cls
+  if (hint) $('connectionHint').textContent = hint
 }
 
-async function startClass(){
-  if(classStarted)return
-  if(!(await ensureConnected()))return
-  if(!(await enableMicrophonePermission()))return
-  classStarted=true;$('live').textContent='Live';camera();await startMicStreaming()
-  if(!timer)timer=setInterval(()=>{seconds++;$('timer').textContent=`${String(seconds/60|0).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`},1000)
-  liveSession.sendClientContent({turns:[{role:'user',parts:[{text:'Start the English lesson now. Greet Walter briefly and ask him one natural question about his workday.'}]}],turnComplete:true})
+function setVisualState(state, label) {
+  if (lastVisualState === state && $('stateText').textContent === label) return
+  lastVisualState = state
+  $('call').classList.remove('speaking','listening','thinking')
+  if (state) $('call').classList.add(state)
+  $('stateText').textContent = label
+  $('statusChip').textContent = label
+  $('statusChip').className = `chip ${state === 'speaking' ? 'ok' : state === 'thinking' ? 'warn' : ''}`
 }
 
-async function endClass(){classStarted=false;clearInterval(timer);timer=null;await stopMicStreaming();try{liveSession?.close()}catch{}liveSession=null;aiReady=false;try{avatarController?.close()}catch{}$('live').textContent='Ended';setAIStatus('closed','bad');setState('Ready');caption('System','Session ended.')}
+function logSystem(text, bad=false) {
+  const div = document.createElement('div')
+  div.className = 'msg'
+  div.style.borderLeftColor = bad ? '#ff7d8d' : '#7899b8'
+  div.innerHTML = `<div class="who">System</div>${escapeHtml(text)}`
+  $('log').prepend(div)
+}
 
-$('camera').onclick=camera
-$('settings').onclick=async()=>{await loadRuntimeConfig();$('modal').classList.add('show')}
-$('cancel').onclick=()=>{$('modal').classList.remove('show')}
-$('connect').onclick=connectAll
-$('start').onclick=startClass
-$('mute').onclick=async()=>{muted=!muted;$('mute').textContent=muted?'🔇 Muted':'🎤 Mic';if(muted){if(liveSession)liveSession.sendRealtimeInput({audioStreamEnd:true});await stopMicStreaming();$('micstatus').textContent='muted';$('micstatus').className='warn';setState('Muted','warn')}else await startMicStreaming()}
-$('end').onclick=endClass
+function escapeHtml(value='') {
+  return String(value).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))
+}
 
-loadRuntimeConfig().then(()=>{if(runtimeConfig.appId&&runtimeConfig.spatiusConfigured&&runtimeConfig.geminiConfigured){$('placeholderText').textContent='Secure setup ready. Press Start class — no API keys required.';caption('System','Secure setup ready. Press Start class.')}})
+function createTranscriptMessage(speaker) {
+  const div = document.createElement('div')
+  div.className = `msg ${speaker === 'Walter' ? 'user' : ''}`
+  div.innerHTML = `<div class="who">${speaker}</div><div class="body"></div>`
+  $('log').prepend(div)
+  return div
+}
+
+function appendTranscript(speaker, delta, startMs=0, endMs=0) {
+  if (!delta) return
+  const st = transcriptState[speaker]
+  const gap = st.end == null ? Infinity : Math.max(0, startMs - st.end)
+  if (!st.el || gap > 1300) {
+    finalizeSpeaker(speaker)
+    st.text = ''
+    st.start = startMs
+    st.el = createTranscriptMessage(speaker)
+    if (speaker === 'Walter') {
+      turns += 1
+      renderTime()
+      $('repeatCard').classList.remove('show')
+    }
+  }
+  st.text += delta
+  st.end = endMs || st.end || startMs
+  st.el.querySelector('.body').textContent = st.text
+  if (speaker === 'Walter') $('userCaption').textContent = st.text || '…'
+  else {
+    $('emmaCaption').textContent = st.text || '…'
+    detectRepeat(st.text)
+  }
+}
+
+function finalizeSpeaker(speaker) {
+  const st = transcriptState[speaker]
+  if (!st.text.trim()) return
+  saveRecentLine(speaker, st.text.trim())
+  st.text = ''
+  st.start = null
+  st.end = null
+  st.el = null
+}
+
+function saveRecentLine(speaker, text) {
+  const old = localStorage.getItem(storageKeys.recent) || ''
+  const line = `[${speaker}] ${text}\n`
+  localStorage.setItem(storageKeys.recent, (old + line).slice(-12000))
+}
+
+function detectRepeat(text) {
+  const match = text.match(/(?:repeat|repite)(?:\s+the\s+full\s+sentence|\s+la\s+frase\s+completa)?\s*[:–—-]\s*([^\n]{2,140})/i)
+  if (!match) return
+  let phrase = match[1].trim().replace(/[“”"]/g,'')
+  if (phrase.length > 140) phrase = phrase.slice(0,140)
+  $('repeatPhrase').textContent = phrase
+  $('repeatCard').classList.add('show')
+}
+
+function setupAnalyser(stream, kind) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{})
+  const src = audioCtx.createMediaStreamSource(stream)
+  const analyser = audioCtx.createAnalyser()
+  analyser.fftSize = 256
+  analyser.smoothingTimeConstant = .7
+  src.connect(analyser)
+  if (kind === 'mic') micAnalyser = analyser
+  else remoteAnalyser = analyser
+}
+
+function rms(analyser) {
+  if (!analyser) return 0
+  const data = new Uint8Array(analyser.fftSize)
+  analyser.getByteTimeDomainData(data)
+  let sum = 0
+  for (let i=0;i<data.length;i++) {
+    const n = (data[i]-128)/128
+    sum += n*n
+  }
+  return Math.sqrt(sum/data.length)
+}
+
+function animateAudio() {
+  cancelAnimationFrame(rafId)
+  const tick = () => {
+    const mic = muted ? 0 : rms(micAnalyser)
+    const remote = rms(remoteAnalyser)
+    const micPct = Math.min(100, Math.max(0, mic * 520))
+    $('micLevel').style.width = `${micPct}%`
+    const amp = Math.min(.55, remote * 5.2)
+    document.documentElement.style.setProperty('--amp', String(Math.max(.05, amp)))
+    if (running) {
+      if (remote > .028) setVisualState('speaking','Emma speaking')
+      else if (!muted && mic > .025) setVisualState('listening','Listening to you')
+      else setVisualState('listening', muted ? 'Mic muted' : 'Listening')
+    }
+    rafId = requestAnimationFrame(tick)
+  }
+  tick()
+}
+
+function waitForIceComplete(peer) {
+  if (peer.iceGatheringState === 'complete') return Promise.resolve()
+  return new Promise(resolve => {
+    const check = () => {
+      if (peer.iceGatheringState === 'complete') {
+        peer.removeEventListener('icegatheringstatechange', check)
+        resolve()
+      }
+    }
+    peer.addEventListener('icegatheringstatechange', check)
+    setTimeout(resolve, 1800)
+  })
+}
+
+async function getConfig() {
+  try {
+    const r = await fetch('/api/runtime-config', {cache:'no-store'})
+    if (!r.ok) return {openaiConfigured:false}
+    return await r.json()
+  } catch {
+    return {openaiConfigured:false}
+  }
+}
+
+async function startClass() {
+  if (running || pc) return
+  $('start').disabled = true
+  setConnection('checking','warning','Checking secure server configuration…')
+  setVisualState('thinking','Connecting')
+
+  const config = await getConfig()
+  if (!config.openaiConfigured) {
+    setConnection('setup needed','bad','OPENAI_API_KEY is not configured on the server yet. Add it once in Vercel; the app will never ask for it during class.')
+    setVisualState('', 'OpenAI setup required')
+    $('start').disabled = false
+    return
+  }
+
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
+      video:false
+    })
+  } catch (e) {
+    setConnection('microphone blocked','bad','Allow microphone access in Chrome and press Start class again.')
+    logSystem(`Microphone error: ${e?.message || e}`, true)
+    setVisualState('', 'Microphone permission needed')
+    $('start').disabled = false
+    return
+  }
+
+  try {
+    pc = new RTCPeerConnection()
+    dc = pc.createDataChannel('oai-events')
+    wireDataChannel(dc)
+
+    const remoteAudio = $('remoteAudio')
+    pc.ontrack = async (e) => {
+      const stream = e.streams[0]
+      remoteAudio.srcObject = stream
+      try { await remoteAudio.play() } catch {}
+      setupAnalyser(stream,'remote')
+    }
+
+    setupAnalyser(micStream,'mic')
+    micStream.getTracks().forEach(t => pc.addTrack(t,micStream))
+
+    const offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
+    await waitForIceComplete(pc)
+
+    const memory = (localStorage.getItem(storageKeys.recent) || '').slice(-6000)
+    const r = await fetch('/api/live-session', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        sdp:pc.localDescription?.sdp || offer.sdp,
+        memory,
+        todayStudySeconds:dailySeconds
+      })
+    })
+    const result = await r.json().catch(()=>({}))
+    if (!r.ok || !result.sdp) throw new Error(result.detail || result.error || `Session request failed (${r.status})`)
+
+    await pc.setRemoteDescription({type:'answer',sdp:result.sdp})
+    setConnection('connecting','warning','GPT-Live session created. Waiting for the live event channel…')
+    animateAudio()
+  } catch (e) {
+    logSystem(`Connection error: ${e?.message || e}`, true)
+    setConnection('error','bad',e?.message || String(e))
+    setVisualState('', 'Connection failed')
+    cleanupConnection(false)
+    $('start').disabled = false
+  }
+}
+
+function wireDataChannel(channel) {
+  channel.onopen = () => setConnection('connecting','warning','Secure voice channel open. Starting session…')
+  channel.onclose = () => {
+    if (running) logSystem('Live event channel closed.')
+  }
+  channel.onerror = () => setConnection('event error','bad','The live event channel reported an error.')
+  channel.onmessage = (event) => {
+    let msg
+    try { msg = JSON.parse(event.data) } catch { return }
+    handleServerEvent(msg)
+  }
+}
+
+function handleServerEvent(msg) {
+  switch (msg.type) {
+    case 'session.started': {
+      sessionStarted = true
+      running = true
+      sessionSeconds = 0
+      startTimer()
+      $('start').textContent = '● Class live'
+      $('start').disabled = true
+      setConnection('live','good','Connected directly to OpenAI GPT-Live. Speak naturally; you can interrupt Emma at any time.')
+      setVisualState('listening','Listening')
+      logSystem('Class started. GPT-Live is listening.')
+      sendEvent({
+        type:'session.commentary.append',
+        content:'Begin the English lesson now. Greet Walter briefly and naturally, then ask one short question that continues his current learning path. Keep the first turn concise.'
+      })
+      break
+    }
+    case 'session.input_transcript.delta':
+      appendTranscript('Walter', msg.delta, msg.start_ms, msg.end_ms)
+      break
+    case 'session.output_transcript.delta':
+      appendTranscript('Emma', msg.delta, msg.start_ms, msg.end_ms)
+      break
+    case 'session.usage_updated':
+      if (msg.usage?.seconds != null) $('connectionHint').textContent = `GPT-Live connected · ${Math.round(msg.usage.seconds)} sec billed live audio so far.`
+      break
+    case 'session.input_audio.muted':
+      setVisualState('', 'Mic muted')
+      break
+    case 'session.input_audio.unmuted':
+      setVisualState('listening','Listening')
+      break
+    case 'session.closed':
+      logSystem(`Session closed${msg.reason ? `: ${msg.reason}` : '.'}`)
+      cleanupConnection(true)
+      break
+    case 'error':
+      logSystem(msg.error?.message || msg.message || 'GPT-Live reported an error.', true)
+      break
+    default:
+      break
+  }
+}
+
+function sendEvent(payload) {
+  if (!dc || dc.readyState !== 'open') return false
+  dc.send(JSON.stringify(payload))
+  return true
+}
+
+function toggleMute() {
+  if (!micStream) return
+  muted = !muted
+  micStream.getAudioTracks().forEach(t => { t.enabled = !muted })
+  $('mute').textContent = muted ? '🔇 Unmute' : '🎤 Mic'
+  $('mute').classList.toggle('active', muted)
+  sendEvent({type: muted ? 'session.input_audio.mute' : 'session.input_audio.unmute'})
+  setVisualState(muted ? '' : 'listening', muted ? 'Mic muted' : 'Listening')
+}
+
+function toggleCaptions() {
+  captionsOn = !captionsOn
+  document.querySelector('.captions').style.display = captionsOn ? 'grid' : 'none'
+  $('captionsBtn').classList.toggle('active', captionsOn)
+  $('captionsBtn').textContent = captionsOn ? 'CC Captions' : 'CC Off'
+}
+
+function clearTranscript() {
+  $('log').innerHTML = ''
+  $('userCaption').textContent = 'Your speech will appear here.'
+  $('emmaCaption').textContent = 'Emma’s words will appear here.'
+  transcriptState.Walter = {text:'',start:null,end:null,el:null}
+  transcriptState.Emma = {text:'',start:null,end:null,el:null}
+}
+
+function endClass() {
+  if (dc?.readyState === 'open') sendEvent({type:'session.close'})
+  setTimeout(() => cleanupConnection(true), 250)
+}
+
+function cleanupConnection(showEnded=true) {
+  finalizeSpeaker('Walter')
+  finalizeSpeaker('Emma')
+  running = false
+  sessionStarted = false
+  stopTimer()
+  cancelAnimationFrame(rafId)
+  rafId = null
+  try { dc?.close() } catch {}
+  try { pc?.close() } catch {}
+  micStream?.getTracks().forEach(t => t.stop())
+  try { audioCtx?.close() } catch {}
+  $('remoteAudio').srcObject = null
+  pc = null; dc = null; micStream = null; audioCtx = null; micAnalyser = null; remoteAnalyser = null
+  muted = false
+  $('mute').textContent = '🎤 Mic'
+  $('mute').classList.remove('active')
+  $('start').disabled = false
+  $('start').textContent = '▶ Start class'
+  document.documentElement.style.setProperty('--amp','.06')
+  if (showEnded) {
+    setConnection('ended','warning','Session ended. Your recent transcript stays on this device to help the next lesson continue naturally.')
+    setVisualState('', 'Class ended')
+  }
+}
+
+$('start').addEventListener('click', startClass)
+$('mute').addEventListener('click', toggleMute)
+$('captionsBtn').addEventListener('click', toggleCaptions)
+$('clear').addEventListener('click', clearTranscript)
+$('end').addEventListener('click', endClass)
+
+window.addEventListener('beforeunload', () => {
+  finalizeSpeaker('Walter')
+  finalizeSpeaker('Emma')
+  if (dc?.readyState === 'open') sendEvent({type:'session.close'})
+  micStream?.getTracks().forEach(t => t.stop())
+})
+
+loadStudyTime()
+getConfig().then(cfg => {
+  if (cfg.openaiConfigured) setConnection('ready','good','Secure OpenAI server configuration detected. Press Start class.')
+  else setConnection('setup needed','bad','Add OPENAI_API_KEY once in Vercel Environment Variables. No API key will be requested inside the app.')
+})
